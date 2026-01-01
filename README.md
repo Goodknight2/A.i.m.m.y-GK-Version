@@ -9,6 +9,8 @@ Want to connect with us? Join our [Discord Server](https://discord.gg/aimmy)
 
 If you want to share Aimmy with your friends use our [website!](https://aimmy.dev/)
 
+In this version, all of the Aimmy strings have been renamed to Spotify, so now the code does not contain the word Aimmy
+
 # Disclaimer
 This is a fork of [Aimmy](https://github.com/Babyhamsta/Aimmy/), if any problems ask us on [discord](discord.gg/aimmy).
 ## What is CUDA
@@ -31,22 +33,18 @@ This is a fork of [Aimmy](https://github.com/Babyhamsta/Aimmy/), if any problems
 - Download and Install the x64 version of [.NET Runtime 8.0.X.X](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-8.0.2-windows-x64-installer)
 - Download and Install the x64 version of [.NET Runtime 7.0.X.X](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-7.0.20-windows-x64-installer)
 - Download and Install the x64 version of [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- Download Aimmy from [Releases](https://github.com/TaylorIsBlue/Aimmy-CUDA/releases) (Make sure it's the Aimmy zip that says **Prepacked CUDA** and not Source zip)
-- Extract and run totallynotaimmyv2.exe
+- Download Aimmy from [Releases](Make sure it's the Aimmy zip and not Source zip)
+- Extract and run totallynotspotifyv2.exe
 - Go to the troubleshooting section if you have issues.
-
-## Setup (troubleshooting)
-- Download and Install the x64 version of [.NET Runtime 8.0.X.X](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-8.0.2-windows-x64-installer)
-- Download and Install the x64 version of [.NET Runtime 7.0.X.X](https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-7.0.20-windows-x64-installer)
-- Download and Install the x64 version of [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- Download Aimmy from [Releases](https://github.com/TaylorIsBlue/Aimmy-CUDA/releases) (Make sure it's the Aimmy zip and not Source zip)
-- **Get [cuDNN 9.x](https://developer.nvidia.com/cudnn-downloads) and [CUDA 12.x](https://developer.nvidia.com/cuda-downloads?target_os=Windows&target_arch=x86_64)**
-- Extract the Aimmy.zip file
-- Run Aimmy.exe
-- Choose your Model and Enjoy :)
-
-### Troubleshooting CUDA
-Sometimes, when you load a model the application closes in an exception, this could mean:
-1. Your cuda installation is wrong. Check your PATH (env variables) for your Cuda installation and your cuDNN.
-2. Download and Install CUDA and cuDNN of [CUDA 12.x](https://developer.nvidia.com/cuda-downloads) and [cuDNN 9.x](https://developer.nvidia.com/cudnn-downloads)
-3. Otherwise, make a ticket in our [discord server](discord.gg/aimmy)
+## Arduino Setup(Credit to Slow Potato for making this guide)
+- If using a HOST SHIELD select "Y" when prompted if you don't have one just select "N".
+-  HOST SHIELD is "recommended" for games on STEAM, EA, Battlenet etc... since the newest patch 10/15/25 blocks 2nd mouse inputs such as Leonardo R3 alone without a HOST SHIELD, DDxoft, Mouse Events, Razer Drivers, LG Hub Drivers. [If using without HOST SHIELD this will still work on other games that block out most external mouse inputs]
+-  Video instructions Below
+-  https://github.com/user-attachments/assets/5d933af0-6dc1-425c-90f5-f920b4b94c04
+### WIN11 USERs getting "wmic" error
+- Do the following command in Powershell as Admin:   Add-WindowsCapability -online -name WMIC
+- Then re-run .bat as Admin.
+- If still fails run this command: dism /online /add-capability /capabilityname:WMIC~~~~
+### KNOWN UNSUPPORTED MOUSES:
+- Logitech G300s, Logitech Hero 502, Logitech G102
+- Any 2-in-1 Keyboard and Mouse with a single receiver
