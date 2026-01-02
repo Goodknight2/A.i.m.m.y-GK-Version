@@ -9,7 +9,14 @@ Want to connect with us? Join our [Discord Server](https://discord.gg/aimmy)
 
 If you want to share Aimmy with your friends use our [website!](https://aimmy.dev/)
 
-In this version, all of the Aimmy strings have been renamed to Spotify, so now the code does not contain the word Aimmy
+In this version, all of the Aimmy strings have been renamed, so now the code does not contain the word Aimmy
+# Warning
+To not get banned in games like Bloodstrike, make sure you
+- Don't name the folder where Aimmy is anything with Aimmy in it
+- Don't open Aimmy's Discord channel while in the lobby or in-game
+- Don't always alt-tab to Aimmy while in-game or in lobby
+- You can still get temp-banned for 2 hours if you get reported too much
+- If you still got banned, check the folder name or other running processes.
 
 # Disclaimer
 This is a fork of [Aimmy](https://github.com/Babyhamsta/Aimmy/), if any problems ask us on [discord](discord.gg/aimmy).
