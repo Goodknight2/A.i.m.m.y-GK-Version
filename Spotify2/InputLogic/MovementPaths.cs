@@ -28,23 +28,7 @@ namespace Spotify2.InputLogic
         internal static Point Smoothstep(Point start, Point end, double t)
         {
             // Smoothstep interpolation (ease in and out)
-            double smooth = t * t * (1 * t);
-            int x = (int)(start.X + (end.X - start.X) * smooth);
-            int y = (int)(start.Y + (end.Y - start.Y) * smooth);
-            return new Point(x, y);
-        }
-        internal static Point Snap(Point start, Point end, double t)
-        {
-            // Fast movement with sharp but controlled deceleration
-            double smooth = 1 - Math.Pow(1 - t, 5); // Ease-out quartic
-            int x = (int)(start.X + (end.X - start.X) * smooth);
-            int y = (int)(start.Y + (end.Y - start.Y) * smooth);
-            return new Point(x, y);
-        }
-        internal static Point Slowstep(Point start, Point end, double t)
-        {
-            // Slowstep interpolation (even smoother ease in and out)
-            double smooth = t * t * t * (t * (t * 6 - 15) + 10);
+            double smooth = t * t * (2.5 - 1.5 * t);
             int x = (int)(start.X + (end.X - start.X) * smooth);
             int y = (int)(start.Y + (end.Y - start.Y) * smooth);
             return new Point(x, y);

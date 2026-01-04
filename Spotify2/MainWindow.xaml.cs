@@ -271,8 +271,6 @@ namespace Spotify2
                 "Exponential" => 1,
                 "Adaptive" => 2,
                 "Smoothstep" => 3,
-                "Slowstep" => 4,
-                "Snap" => 5,
                 _ => 1 // Default case if none of the above matches
             };
             uiManager.D_ExecutionProvider!.DropdownBox.SelectedIndex = Dictionary.dropdownState["Execution Provider Type"] switch
@@ -362,6 +360,11 @@ namespace Spotify2
 
                 case "EMA Smoothening":
                     MouseManager.IsEMASmoothingEnabled = Dictionary.toggleState[title];
+                    if (Dictionary.toggleState[title])
+                    {
+                        // Ensure smoothing factor is set when enabling
+                        MouseManager.smoothingFactor = Dictionary.sliderSettings["EMA Smoothening"];
+                    }
                     break;
 
                 case "X Axis Percentage Adjustment":
@@ -553,8 +556,6 @@ namespace Spotify2
             AddDropdownItem(uiManager.D_MovementPath, "Exponential");
             AddDropdownItem(uiManager.D_MovementPath, "Adaptive");
             AddDropdownItem(uiManager.D_MovementPath, "Smoothstep");
-            AddDropdownItem(uiManager.D_MovementPath, "Slowstep");
-            AddDropdownItem(uiManager.D_MovementPath, "Snap");
             //AddDropdownItem(uiManager.D_MovementPath, "Instant"); --- IGNORE --
 
             uiManager.D_AimingBoundariesAlignment = AddDropdown(AimConfig, "Aiming Boundaries Alignment");
@@ -762,8 +763,8 @@ namespace Spotify2
         {
             try
             {
-                Task models = FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Goodknight2/A.i.m.m.y-GK-Version/contents/models", "bin\\models", AvailableModels);
-                Task configs = FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Goodknight2/A.i.m.m.y-GK-Version/contents/configs", "bin\\configs", AvailableConfigs);
+                Task models = FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Goodknight2/Ai-Models/contents/models", "bin\\models", AvailableModels);
+                Task configs = FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Goodknight2/Ai-Models/contents/configs", "bin\\configs", AvailableConfigs);
 
                 await Task.WhenAll(models, configs);
             }

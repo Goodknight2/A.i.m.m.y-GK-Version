@@ -20,17 +20,66 @@ namespace Spotify2.InputLogic
         private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
         private const uint MOUSEEVENTF_LEFTUP = 0x0004;
         private const uint MOUSEEVENTF_MOVE = 0x0001;
-        private static double previousX = 0;
-        private static double previousY = 0;
-        public static double smoothingFactor = 0.5;
-        public static bool IsEMASmoothingEnabled = false;
+        
+        // Make these thread-safe
+        private static long _previousXBits = 0;
+        private static long _previousYBits = 0;
+        
+        private static double previousX
+        {
+            get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _previousXBits));
+            set => Interlocked.Exchange(ref _previousXBits, BitConverter.DoubleToInt64Bits(value));
+        }
+        
+        private static double previousY
+        {
+            get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _previousYBits));
+            set => Interlocked.Exchange(ref _previousYBits, BitConverter.DoubleToInt64Bits(value));
+        }
+        
+        private static long _smoothingFactorBits = BitConverter.DoubleToInt64Bits(0.65);
+        private static int _isEMASmoothingEnabled = 0;
+        
+        public static double smoothingFactor
+        {
+            get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _smoothingFactorBits));
+            set => Interlocked.Exchange(ref _smoothingFactorBits, BitConverter.DoubleToInt64Bits(value));
+        }
+        
+        public static bool IsEMASmoothingEnabled
+        {
+            get => Interlocked.CompareExchange(ref _isEMASmoothingEnabled, 0, 0) == 1;
+            set
+            {
+                int newValue = value ? 1 : 0;
+                int oldValue = Interlocked.Exchange(ref _isEMASmoothingEnabled, newValue);
+                
+                if (oldValue == 1 && newValue == 0)
+                {
+                    previousX = 0;
+                    previousY = 0;
+                }
+            }
+        }
 
         [DllImport("user32.dll")]
         private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
 
-        private static Random MouseRandom = new();
-        public static ArduinoInput arduinoMouse = new();        
-        private static double EmaSmoothing(double previousValue, double currentValue, double smoothingFactor) => currentValue * smoothingFactor + previousValue * (1 - smoothingFactor);
+        private static readonly Random MouseRandom = new();
+        
+        // Lazy initialization for Arduino
+        private static ArduinoInput? _arduinoMouse = null;
+        private static ArduinoInput GetArduinoMouse()
+        {
+            if (_arduinoMouse == null)
+            {
+                _arduinoMouse = new ArduinoInput();
+            }
+            return _arduinoMouse;
+        }
+        
+        private static double EmaSmoothing(double previousValue, double currentValue, double smoothingFactor) 
+            => currentValue * smoothingFactor + previousValue * (1 - smoothingFactor);
 
         public static async Task DoTriggerClick()
         {
@@ -44,12 +93,11 @@ namespace Spotify2.InputLogic
             }
 
             string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
-            Action mouseDownAction, mouseUpAction;
-
-            (mouseDownAction, mouseUpAction) = GetMouseActions(mouseMovementMethod);
+            
+            var (mouseDownAction, mouseUpAction) = GetMouseActions(mouseMovementMethod);
 
             mouseDownAction.Invoke();
-            await Task.Delay(clickDelayMilliseconds);
+            await Task.Delay(clickDelayMilliseconds).ConfigureAwait(false);
             mouseUpAction.Invoke();
 
             LastClickTime = DateTime.UtcNow;
@@ -63,8 +111,8 @@ namespace Spotify2.InputLogic
                         () => SendInputMouse.SendMouseCommand(MOUSEEVENTF_LEFTUP)
                     ),
                     "Arduino" => (
-                        () => arduinoMouse.SendMouseCommand(0, 0, 1),
-                        () => arduinoMouse.SendMouseCommand(0, 0, 0)
+                        () => GetArduinoMouse().SendMouseCommand(0, 0, 1),
+                        () => GetArduinoMouse().SendMouseCommand(0, 0, 0)
                     ),
                     "LG HUB" => (
                         () => LGMouse.Move(1, 0, 0, 0),
@@ -85,31 +133,31 @@ namespace Spotify2.InputLogic
         public static void DoAntiRecoil()
         {
             int timeSinceLastClick = Math.Abs(DateTime.UtcNow.Millisecond - LastAntiRecoilClickTime);
+            int fireRate = Dictionary.AntiRecoilSettings["Fire Rate"];
 
-            if (timeSinceLastClick < Dictionary.AntiRecoilSettings["Fire Rate"])
+            if (timeSinceLastClick < fireRate)
             {
                 return;
             }
 
             int xRecoil = (int)Dictionary.AntiRecoilSettings["X Recoil (Left/Right)"];
             int yRecoil = (int)Dictionary.AntiRecoilSettings["Y Recoil (Up/Down)"];
+            string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
 
-            switch (Dictionary.dropdownState["Mouse Movement Method"])
+            switch (mouseMovementMethod)
             {
                 case "SendInput":
                     SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, xRecoil, yRecoil);
                     break;
                 case "Arduino":
-                    arduinoMouse.SendMouseCommand(xRecoil, yRecoil, 0);
-                    break;    
+                    GetArduinoMouse().SendMouseCommand(xRecoil, yRecoil, 0);
+                    break;
                 case "LG HUB":
                     LGMouse.Move(0, xRecoil, yRecoil, 0);
                     break;
-
                 case "Razer Synapse (Require Razer Peripheral)":
                     RZMouse.mouse_move(xRecoil, yRecoil, true);
                     break;
-
                 default:
                     mouse_event(MOUSEEVENTF_MOVE, (uint)xRecoil, (uint)yRecoil, 0, 0);
                     break;
@@ -120,92 +168,108 @@ namespace Spotify2.InputLogic
 
         public static void MoveCrosshair(int detectedX, int detectedY)
         {
-            int halfScreenWidth = (int)ScreenWidth / 2;
-            int halfScreenHeight = (int)ScreenHeight / 2;
+            double mouseSensitivity = Dictionary.sliderSettings["Mouse Sensitivity (+/-)"];
+            int mouseJitter = (int)Dictionary.sliderSettings["Mouse Jitter"];
+            string movementPath = Dictionary.dropdownState["Movement Path"];
+            string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
+            bool autoTrigger = Dictionary.toggleState["Auto Trigger"];
+            
+            bool emaEnabled = IsEMASmoothingEnabled;
+            double cachedSmoothingFactor = smoothingFactor;
+            double cachedPreviousX = previousX;
+            double cachedPreviousY = previousY;
 
-            int targetX = detectedX - halfScreenWidth;
-            int targetY = detectedY - halfScreenHeight;
+            // Get current mouse position
+            var currentMousePos = WinAPICaller.GetCursorPosition();
+            
+            // Calculate the offset from current mouse position to target
+            int targetX = detectedX - currentMousePos.X;
+            int targetY = detectedY - currentMousePos.Y;
 
             double aspectRatioCorrection = ScreenWidth / ScreenHeight;
 
-            int MouseJitter = (int)Dictionary.sliderSettings["Mouse Jitter"];
-            int jitterX = MouseRandom.Next(-MouseJitter, MouseJitter);
-            int jitterY = MouseRandom.Next(-MouseJitter, MouseJitter);
+            int jitterX = MouseRandom.Next(-mouseJitter, mouseJitter);
+            int jitterY = MouseRandom.Next(-mouseJitter, mouseJitter);
 
             Point start = new(0, 0);
             Point end = new(targetX, targetY);
-            Point midPoint = new((start.X + end.X) / 2, (start.Y + end.Y) / 2);
-            Point newPosition = new Point(0, 0);
+            Point newPosition;
 
-            switch (Dictionary.dropdownState["Movement Path"])
+            switch (movementPath)
             {
                 case "Cubic Bezier":
                     Point control1 = new(start.X + (end.X - start.X) / 3, start.Y + (end.Y - start.Y) / 3);
                     Point control2 = new(start.X + 2 * (end.X - start.X) / 3, start.Y + 2 * (end.Y - start.Y) / 3);
-                    newPosition = MovementPaths.CubicBezier(start, end, control1, control2, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+                    newPosition = MovementPaths.CubicBezier(start, end, control1, control2, 1 - mouseSensitivity);
                     break;
                 case "Exponential":
-                    newPosition = MovementPaths.Exponential(start, end, 1 - (Dictionary.sliderSettings["Mouse Sensitivity (+/-)"] - 0.2), 2.7);
+                    newPosition = MovementPaths.Exponential(start, end, 1 - (mouseSensitivity - 0.2), 2.7);
                     break;
                 case "Adaptive":
-                    newPosition = MovementPaths.Adaptive(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+                    newPosition = MovementPaths.Adaptive(start, end, 1 - mouseSensitivity);
                     break;
-                case "Smoothstep":  
-                    newPosition = MovementPaths.Smoothstep(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+                case "Smoothstep":
+                    newPosition = MovementPaths.Smoothstep(start, end, 1 - mouseSensitivity);
                     break;
-                case "Slowstep":
-                    newPosition = MovementPaths.Slowstep(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
-                    break;
-                case "Snap":
-                    // First number in Math.Max() is sens cap 
-                    newPosition = MovementPaths.Snap(start, end, 1 - Math.Max(0.9, Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]));
-                    break;              
                 default:
-                    newPosition = MovementPaths.Lerp(start, end, 1 - Dictionary.sliderSettings["Mouse Sensitivity (+/-)"]);
+                    newPosition = MovementPaths.Lerp(start, end, 1 - mouseSensitivity);
                     break;
             }
-
-            if (IsEMASmoothingEnabled)
+            if (emaEnabled && cachedSmoothingFactor > 0 && cachedSmoothingFactor <= 1)
             {
-                newPosition.X = (int)EmaSmoothing(previousX, newPosition.X, smoothingFactor);
-                newPosition.Y = (int)EmaSmoothing(previousY, newPosition.Y, smoothingFactor);
+                double smoothedX = EmaSmoothing(cachedPreviousX, newPosition.X, cachedSmoothingFactor);
+                double smoothedY = EmaSmoothing(cachedPreviousY, newPosition.Y, cachedSmoothingFactor);
+                
+                if (!double.IsNaN(smoothedX) && !double.IsInfinity(smoothedX) &&
+                    !double.IsNaN(smoothedY) && !double.IsInfinity(smoothedY))
+                {
+                    newPosition.X = (int)smoothedX;
+                    newPosition.Y = (int)smoothedY;
+                    
+                    previousX = smoothedX;
+                    previousY = smoothedY;
+                }
             }
+            // Clamp the movement - but use DOUBLE values, not int yet
+            double moveXDouble = Math.Clamp(newPosition.X, -150, 150);
+            double moveYDouble = Math.Clamp(newPosition.Y, -150, 150);
+            
+            moveYDouble = moveYDouble * aspectRatioCorrection;
 
-            targetX = Math.Clamp(targetX, -150, 150);
-            targetY = Math.Clamp(targetY, -150, 150);
+            moveXDouble += jitterX;
+            moveYDouble += jitterY;
 
-            targetY = (int)(targetY * aspectRatioCorrection);
+            // Round instead of truncate - THIS IS THE KEY FIX
+            int moveX = (int)Math.Round(moveXDouble);
+            int moveY = (int)Math.Round(moveYDouble);
 
-            targetX += jitterX;
-            targetY += jitterY;
-
-            switch (Dictionary.dropdownState["Mouse Movement Method"])
+            switch (mouseMovementMethod)
             {
                 case "SendInput":
-                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, newPosition.X, newPosition.Y);
+                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, moveX, moveY);
                     break;
 
                 case "Arduino":
-                    arduinoMouse.SendMouseCommand(newPosition.X, newPosition.Y, 0);
-                    break;    
+                    GetArduinoMouse().SendMouseCommand(moveX, moveY, 0);
+                    break;
 
                 case "LG HUB":
-                    LGMouse.Move(0, newPosition.X, newPosition.Y, 0);
+                    LGMouse.Move(0, moveX, moveY, 0);
                     break;
 
                 case "Razer Synapse (Require Razer Peripheral)":
-                    RZMouse.mouse_move(newPosition.X, newPosition.Y, true);
+                    RZMouse.mouse_move(moveX, moveY, true);
                     break;
 
                 default:
-                    mouse_event(MOUSEEVENTF_MOVE, (uint)newPosition.X, (uint)newPosition.Y, 0, 0);
+                    mouse_event(MOUSEEVENTF_MOVE, (uint)moveX, (uint)moveY, 0, 0);
                     break;
             }
 
-            if (Dictionary.toggleState["Auto Trigger"])
+            if (autoTrigger)
             {
-                Task.Run(DoTriggerClick);
+                _ = DoTriggerClick();
             }
         }
     }
-}
+}    

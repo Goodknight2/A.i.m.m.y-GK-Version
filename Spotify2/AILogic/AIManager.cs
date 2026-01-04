@@ -55,8 +55,8 @@ namespace Spotify2.AILogic
         private int frameTimeIndex = 0;
         private double totalFrameTime = 0;
 
-        private double CenterXTranslated = 0;
-        private double CenterYTranslated = 0;
+        // private double CenterXTranslated = 0;
+        // private double CenterYTranslated = 0;
 
         private int iterationCount = 0;
         private long totalTime = 0;
@@ -282,6 +282,7 @@ namespace Spotify2.AILogic
             return Task.CompletedTask;
         }
 
+
         private void ValidateOnnxShape()
         {
             var expectedShape = new int[] { 1, 5, NUM_DETECTIONS };
@@ -313,7 +314,7 @@ namespace Spotify2.AILogic
             }
         }
 
-        private async void AiLoop()
+        private void AiLoop()
         {
             Stopwatch stopwatch = new();
             DetectedPlayerWindow? DetectedPlayerOverlay = Dictionary.DetectedPlayerOverlay;
@@ -324,12 +325,24 @@ namespace Spotify2.AILogic
 
             float scaleX = ScreenWidth / (float)IMAGE_SIZE;
             float scaleY = ScreenHeight / (float)IMAGE_SIZE;
+            
             while (_isAiLoopRunning)
             {
+                // Cache frequently accessed dictionary values
+                bool showFps = Dictionary.toggleState["Show FPS"];
+                bool debugMode = Dictionary.toggleState["Debug Mode"];
+                bool shouldProcess = Dictionary.toggleState["Aim Assist"] || 
+                                Dictionary.toggleState["Show Detected Player"] || 
+                                Dictionary.toggleState["Auto Trigger"];
+                bool shouldPredict = Dictionary.toggleState["Show Detected Player"] || 
+                                Dictionary.toggleState["Constant AI Tracking"] || 
+                                InputBindingManager.IsHoldingBinding("Aim Keybind") || 
+                                InputBindingManager.IsHoldingBinding("Second Aim Keybind");
+                
                 double frameTime = stopwatch.Elapsed.TotalSeconds;
                 stopwatch.Restart();
 
-                if (Dictionary.toggleState["Show FPS"])
+                if (showFps)
                 {
                     UpdateFps(frameTime);
                     if (++fpsUpdateCounter >= fpsUpdateInterval)
@@ -340,14 +353,14 @@ namespace Spotify2.AILogic
                             if (DetectedPlayerOverlay != null)
                             {
                                 DetectedPlayerOverlay.FpsLabel.Content = $"FPS: {MAXSAMPLES / totalFrameTime:F2}";
-                            } // turn on esp, FPS usually is around 160 fps - was 30 fps.
+                            }
                         });
                     }
                 }
 
                 _ = UpdateFOV();
 
-                if (iterationCount == 1000 && Dictionary.toggleState["Debug Mode"])
+                if (debugMode && iterationCount == 1000)
                 {
                     double averageTime = totalTime / 1000.0;
                     FileManager.LogInfo($"Average loop iteration time: {averageTime} ms", true);
@@ -355,10 +368,9 @@ namespace Spotify2.AILogic
                     iterationCount = 0;
                 }
 
-                if (ShouldProcess() && ShouldPredict())
+                if (shouldProcess && shouldPredict)
                 {
-                    var closestPredictionTask = Task.Run(() => GetClosestPrediction());
-                    var closestPrediction = await closestPredictionTask.ConfigureAwait(false);
+                    var closestPrediction = GetClosestPrediction(); // Remove async/await here
                     if (closestPrediction == null)
                     {
                         DisableOverlay(DetectedPlayerOverlay!);
@@ -557,7 +569,10 @@ namespace Spotify2.AILogic
 
             return new Rectangle(x, y, width, height);
         }
-        private Task<Prediction?> GetClosestPrediction(bool useMousePosition = true)
+        private DenseTensor<float>? _reusableTensor;
+
+        private float[]? _reusableInputArray;
+        private Prediction? GetClosestPrediction(bool useMousePosition = true)
         {
             var cursorPosition = WinAPICaller.GetCursorPosition();
 
@@ -569,14 +584,25 @@ namespace Spotify2.AILogic
             detectionBox = ClampRectangle(detectionBox, ScreenWidth, ScreenHeight);
 
             Bitmap? frame = ScreenGrab(detectionBox);
-            if (frame == null) return Task.FromResult<Prediction?>(null);
+            if (frame == null) return null;
 
-            float[] inputArray = BitmapToFloatArray(frame);
-            if (inputArray == null) return Task.FromResult<Prediction?>(null);
+            if (_reusableInputArray == null || _reusableInputArray.Length != frame.Height * frame.Width * 3)
+            {
+                _reusableInputArray = new float[frame.Height * frame.Width * 3];
+            }
+            BitmapToFloatArray(frame, _reusableInputArray);
 
-            Tensor<float> inputTensor = new DenseTensor<float>(inputArray, [1, 3, frame.Height, frame.Width]);
-            var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("images", inputTensor) };
-            if (_onnxModel == null) return Task.FromResult<Prediction?>(null);
+            if (_reusableTensor == null)
+            {
+                _reusableTensor = new DenseTensor<float>(_reusableInputArray, [1, 3, frame.Height, frame.Width]);
+            }
+            else
+            {
+                // Reuse existing tensor, just update the backing array reference if needed
+                _reusableTensor = new DenseTensor<float>(_reusableInputArray, [1, 3, frame.Height, frame.Width]);
+            }
+            var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("images", _reusableTensor) };
+            if (_onnxModel == null) return null;
 
             using var results = _onnxModel.Run(inputs, _outputNames, _modeloptions);
             var outputTensor = results[0].AsTensor<float>();
@@ -596,7 +622,7 @@ namespace Spotify2.AILogic
                 {
                     SaveFrame(frame);
                 } // Save images if the user wants to even if theres nothing detected
-                return Task.FromResult<Prediction?>(null);
+                return null;
             }
 
             var tree = new KDTree<double, Prediction>(2, KDpoints.ToArray(), KDPredictions.ToArray(), L2Norm_Squared_Double);
@@ -610,14 +636,14 @@ namespace Spotify2.AILogic
                 float translatedYMin = nearestPrediction.Rectangle.Y + detectionBox.Top;
                 LastDetectionBox = new RectangleF(translatedXMin, translatedYMin, nearestPrediction.Rectangle.Width, nearestPrediction.Rectangle.Height);
 
-                CenterXTranslated = nearestPrediction.CenterXTranslated;
-                CenterYTranslated = nearestPrediction.CenterYTranslated;
+                // CenterXTranslated = nearestPrediction.CenterXTranslated;
+                // CenterYTranslated = nearestPrediction.CenterYTranslated;
 
                 SaveFrame(frame, nearestPrediction);
 
-                return Task.FromResult<Prediction?>(nearestPrediction);
+                return nearestPrediction;
             }
-            return Task.FromResult<Prediction?>(null);
+            return null;
         }
 
         private static (List<double[]>, List<Prediction>) PrepareKDTreeData(Tensor<float> outputTensor, Rectangle detectionBox, float fovMinX, float fovMaxX, float fovMinY, float fovMaxY)
@@ -648,9 +674,7 @@ namespace Spotify2.AILogic
                 var prediction = new Prediction
                 {
                     Rectangle = rect,
-                    Confidence = objectness,
-                    CenterXTranslated = (x_center - detectionBox.Left) / IMAGE_SIZE,
-                    CenterYTranslated = (y_center - detectionBox.Top) / IMAGE_SIZE
+                    Confidence = objectness
                 };
 
                 localData.Item1.Add([x_center, y_center]);
@@ -861,12 +885,11 @@ namespace Spotify2.AILogic
             return dist;
         };
 
-        public static unsafe float[] BitmapToFloatArray(Bitmap image)
+        public static unsafe void BitmapToFloatArray(Bitmap image, float[] result)
         {
             int height = image.Height;
             int width = image.Width;
             int pixelCount = height * width;
-            float[] result = new float[3 * pixelCount];
             float multiplier = 1.0f / 31.0f;
 
             var rect = new Rectangle(0, 0, width, height);
@@ -876,10 +899,9 @@ namespace Spotify2.AILogic
             {
                 int stride = bmpData.Stride;
                 IntPtr scan0 = bmpData.Scan0;
-
-
                 byte* p = (byte*)scan0.ToPointer();
-                _ = Parallel.For(0, height, y =>
+                
+                Parallel.For(0, height, y =>
                 {
                     byte* row = p + y * stride;
                     int rowOffset = y * width;
@@ -896,16 +918,12 @@ namespace Spotify2.AILogic
                         result[2 * pixelCount + resultIndex] = b;
                     }
                 });
-
             }
             finally
             {
                 image.UnlockBits(bmpData);
             }
-
-            return result;
         }
-
         #endregion complicated math
         public void Dispose()
         {
@@ -950,8 +968,8 @@ namespace Spotify2.AILogic
         {
             public RectangleF Rectangle { get; set; }
             public float Confidence { get; set; }
-            public float CenterXTranslated { get; set; }
-            public float CenterYTranslated { get; set; }
+            // public float CenterXTranslated { get; set; }
+            // public float CenterYTranslated { get; set; }
         }
     }
 }
