@@ -410,11 +410,13 @@ namespace Spotify2.AILogic
             double scalingFactorX = WinAPICaller.scalingFactorX;
             double scalingFactorY = WinAPICaller.scalingFactorY;
 
-            double centerX = LastDetectionBox.X / scalingFactorX + (LastDetectionBox.Width / 2.0);
+            // LastDetectionBox is in screen coordinates (pixels), so we need to divide by scaling factors
+            double centerX = (LastDetectionBox.X / scalingFactorX) + (LastDetectionBox.Width / scalingFactorX / 2.0);
             double centerY = LastDetectionBox.Y / scalingFactorY;
-            double boxWidth = LastDetectionBox.Width;
-            double boxHeight = LastDetectionBox.Height;
+            double boxWidth = LastDetectionBox.Width / scalingFactorX;
+            double boxHeight = LastDetectionBox.Height / scalingFactorY;
 
+            // Cache these values to avoid multiple dictionary lookups in the UI thread
             bool showConfidence = Dictionary.toggleState["Show AI Confidence"];
             bool showTracers = Dictionary.toggleState["Show Tracers"];
             double opacity = Dictionary.sliderSettings["Opacity"];
@@ -422,6 +424,7 @@ namespace Spotify2.AILogic
 
             Application.Current.Dispatcher.BeginInvoke(() =>
             {
+                // Update Focus Box
                 detectedPlayerOverlay.DetectedPlayerFocus.Opacity = 1;
                 detectedPlayerOverlay.DetectedPlayerFocus.Margin = new Thickness(centerX - (boxWidth / 2.0), centerY, 0, 0);
                 detectedPlayerOverlay.DetectedPlayerFocus.Width = boxWidth;

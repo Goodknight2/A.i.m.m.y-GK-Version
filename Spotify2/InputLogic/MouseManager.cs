@@ -21,7 +21,7 @@ namespace Spotify2.InputLogic
         private const uint MOUSEEVENTF_LEFTUP = 0x0004;
         private const uint MOUSEEVENTF_MOVE = 0x0001;
         
-        // Make these thread-safe too since they're shared between UI and AI threads
+        // Make these thread-safe
         private static long _previousXBits = 0;
         private static long _previousYBits = 0;
         
@@ -37,9 +37,8 @@ namespace Spotify2.InputLogic
             set => Interlocked.Exchange(ref _previousYBits, BitConverter.DoubleToInt64Bits(value));
         }
         
-        // Use Interlocked with long conversion for lock-free thread safety
         private static long _smoothingFactorBits = BitConverter.DoubleToInt64Bits(0.65);
-        private static int _isEMASmoothingEnabled = 0; // 0 = false, 1 = true
+        private static int _isEMASmoothingEnabled = 0;
         
         public static double smoothingFactor
         {
@@ -55,7 +54,6 @@ namespace Spotify2.InputLogic
                 int newValue = value ? 1 : 0;
                 int oldValue = Interlocked.Exchange(ref _isEMASmoothingEnabled, newValue);
                 
-                // Reset EMA state when toggling from enabled to disabled
                 if (oldValue == 1 && newValue == 0)
                 {
                     previousX = 0;
@@ -68,7 +66,17 @@ namespace Spotify2.InputLogic
         private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, int dwExtraInfo);
 
         private static readonly Random MouseRandom = new();
-        public static ArduinoInput arduinoMouse = new();
+        
+        // Lazy initialization for Arduino
+        private static ArduinoInput? _arduinoMouse = null;
+        private static ArduinoInput GetArduinoMouse()
+        {
+            if (_arduinoMouse == null)
+            {
+                _arduinoMouse = new ArduinoInput();
+            }
+            return _arduinoMouse;
+        }
         
         private static double EmaSmoothing(double previousValue, double currentValue, double smoothingFactor) 
             => currentValue * smoothingFactor + previousValue * (1 - smoothingFactor);
@@ -85,12 +93,11 @@ namespace Spotify2.InputLogic
             }
 
             string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
-            Action mouseDownAction, mouseUpAction;
-
-            (mouseDownAction, mouseUpAction) = GetMouseActions(mouseMovementMethod);
+            
+            var (mouseDownAction, mouseUpAction) = GetMouseActions(mouseMovementMethod);
 
             mouseDownAction.Invoke();
-            await Task.Delay(clickDelayMilliseconds);
+            await Task.Delay(clickDelayMilliseconds).ConfigureAwait(false);
             mouseUpAction.Invoke();
 
             LastClickTime = DateTime.UtcNow;
@@ -104,8 +111,8 @@ namespace Spotify2.InputLogic
                         () => SendInputMouse.SendMouseCommand(MOUSEEVENTF_LEFTUP)
                     ),
                     "Arduino" => (
-                        () => arduinoMouse.SendMouseCommand(0, 0, 1),
-                        () => arduinoMouse.SendMouseCommand(0, 0, 0)
+                        () => GetArduinoMouse().SendMouseCommand(0, 0, 1),
+                        () => GetArduinoMouse().SendMouseCommand(0, 0, 0)
                     ),
                     "LG HUB" => (
                         () => LGMouse.Move(1, 0, 0, 0),
@@ -143,7 +150,7 @@ namespace Spotify2.InputLogic
                     SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, xRecoil, yRecoil);
                     break;
                 case "Arduino":
-                    arduinoMouse.SendMouseCommand(xRecoil, yRecoil, 0);
+                    GetArduinoMouse().SendMouseCommand(xRecoil, yRecoil, 0);
                     break;
                 case "LG HUB":
                     LGMouse.Move(0, xRecoil, yRecoil, 0);
@@ -161,7 +168,6 @@ namespace Spotify2.InputLogic
 
         public static void MoveCrosshair(int detectedX, int detectedY)
         {
-            // Cache dictionary lookups at the start
             double mouseSensitivity = Dictionary.sliderSettings["Mouse Sensitivity (+/-)"];
             int mouseJitter = (int)Dictionary.sliderSettings["Mouse Jitter"];
             string movementPath = Dictionary.dropdownState["Movement Path"];
@@ -173,11 +179,12 @@ namespace Spotify2.InputLogic
             double cachedPreviousX = previousX;
             double cachedPreviousY = previousY;
 
-            int halfScreenWidth = (int)ScreenWidth / 2;
-            int halfScreenHeight = (int)ScreenHeight / 2;
-
-            int targetX = detectedX - halfScreenWidth;
-            int targetY = detectedY - halfScreenHeight;
+            // Get current mouse position
+            var currentMousePos = WinAPICaller.GetCursorPosition();
+            
+            // Calculate the offset from current mouse position to target
+            int targetX = detectedX - currentMousePos.X;
+            int targetY = detectedY - currentMousePos.Y;
 
             double aspectRatioCorrection = ScreenWidth / ScreenHeight;
 
@@ -208,13 +215,11 @@ namespace Spotify2.InputLogic
                     newPosition = MovementPaths.Lerp(start, end, 1 - mouseSensitivity);
                     break;
             }
-
             if (emaEnabled && cachedSmoothingFactor > 0 && cachedSmoothingFactor <= 1)
             {
                 double smoothedX = EmaSmoothing(cachedPreviousX, newPosition.X, cachedSmoothingFactor);
                 double smoothedY = EmaSmoothing(cachedPreviousY, newPosition.Y, cachedSmoothingFactor);
                 
-                // Make sure smoothed values aren't null or Infinity
                 if (!double.IsNaN(smoothedX) && !double.IsInfinity(smoothedX) &&
                     !double.IsNaN(smoothedY) && !double.IsInfinity(smoothedY))
                 {
@@ -225,36 +230,39 @@ namespace Spotify2.InputLogic
                     previousY = smoothedY;
                 }
             }
-
-            // Clamp and apply aspect ratio correction
-            targetX = Math.Clamp(newPosition.X, -150, 150);
-            targetY = Math.Clamp(newPosition.Y, -150, 150);
+            // Clamp the movement - but use DOUBLE values, not int yet
+            double moveXDouble = Math.Clamp(newPosition.X, -150, 150);
+            double moveYDouble = Math.Clamp(newPosition.Y, -150, 150);
             
-            targetY = (int)(targetY * aspectRatioCorrection);
+            moveYDouble = moveYDouble * aspectRatioCorrection;
 
-            targetX += jitterX;
-            targetY += jitterY;
+            moveXDouble += jitterX;
+            moveYDouble += jitterY;
+
+            // Round instead of truncate - THIS IS THE KEY FIX
+            int moveX = (int)Math.Round(moveXDouble);
+            int moveY = (int)Math.Round(moveYDouble);
 
             switch (mouseMovementMethod)
             {
                 case "SendInput":
-                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, targetX, targetY);
+                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, moveX, moveY);
                     break;
 
                 case "Arduino":
-                    arduinoMouse.SendMouseCommand(targetX, targetY, 0);
+                    GetArduinoMouse().SendMouseCommand(moveX, moveY, 0);
                     break;
 
                 case "LG HUB":
-                    LGMouse.Move(0, targetX, targetY, 0);
+                    LGMouse.Move(0, moveX, moveY, 0);
                     break;
 
                 case "Razer Synapse (Require Razer Peripheral)":
-                    RZMouse.mouse_move(targetX, targetY, true);
+                    RZMouse.mouse_move(moveX, moveY, true);
                     break;
 
                 default:
-                    mouse_event(MOUSEEVENTF_MOVE, (uint)targetX, (uint)targetY, 0, 0);
+                    mouse_event(MOUSEEVENTF_MOVE, (uint)moveX, (uint)moveY, 0, 0);
                     break;
             }
 
@@ -264,4 +272,4 @@ namespace Spotify2.InputLogic
             }
         }
     }
-}
+}    
