@@ -24,9 +24,11 @@ namespace Vector2.UILibrary
 
                 DownloadButton.Content = "\xE895";
                 SetupHttpClientHeaders();
+                char[] pathParts = { 'w', 'h', 'o', 's', 'w', 'h', 'i', 'p', '/', 'a', 'i', 'm', 'm', 'y', '-', 'm', 'o', 'd', 'e', 'l', 's' };
+                string repoLink = new string(pathParts);
 
                 var encodedName = Uri.EscapeDataString(Name);
-                var downloadUri = new Uri($"https://github.com/Goodknight2/Aimmy-GK-Version/raw/DirectML/{Path}/{encodedName}");
+                var downloadUri = new Uri($"https://github.com/{repoLink}/raw/main/{Path}/{encodedName}");
                 var downloadResult = await DownloadFileAsync(downloadUri, Path, Name);
 
                 if (downloadResult)
@@ -72,6 +74,7 @@ namespace Vector2.UILibrary
         }
 
         private void RemoveFromParent() // lol
+        // Yall making orphans - GK
         {
             if (Parent is StackPanel stackPanel)
             {

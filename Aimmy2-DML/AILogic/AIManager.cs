@@ -16,6 +16,8 @@ using Visuality;
 using static AILogic.MathUtil;
 using static Other.LogManager;
 using Point = System.Drawing.Point;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace Vector2.AILogic
 {
@@ -307,121 +309,119 @@ namespace Vector2.AILogic
         }
         private bool ValidateOnnxShape()
         {
-            if (_onnxModel != null)
+            if (_onnxModel == null) return false;
+
+            var inputMetadata = _onnxModel.InputMetadata;
+            var outputMetadata = _onnxModel.OutputMetadata;
+
+            Log(LogLevel.Info, "=== Model Metadata ===");
+            Log(LogLevel.Info, "Input Metadata:");
+
+            bool isDynamic = false;
+            int fixedInputSize = 0;
+
+            foreach (var kvp in inputMetadata)
             {
-                var inputMetadata = _onnxModel.InputMetadata;
-                var outputMetadata = _onnxModel.OutputMetadata;
+                string dimensionsStr = string.Join("x", kvp.Value.Dimensions);
+                Log(LogLevel.Info, $"  Name: {kvp.Key}, Dimensions: {dimensionsStr}");
 
-                Log(LogLevel.Info, "=== Model Metadata ===");
-                Log(LogLevel.Info, "Input Metadata:");
-
-                bool isDynamic = false;
-                int fixedInputSize = 0;
-
-                foreach (var kvp in inputMetadata)
+                // Check if model is dynamic (dimensions are -1)
+                if (kvp.Value.Dimensions.Any(d => d == -1))
                 {
-                    string dimensionsStr = string.Join("x", kvp.Value.Dimensions);
-                    Log(LogLevel.Info, $"  Name: {kvp.Key}, Dimensions: {dimensionsStr}");
-
-                    // Check if model is dynamic (dimensions are -1)
-                    if (kvp.Value.Dimensions.Any(d => d == -1))
-                    {
-                        isDynamic = true;
-                    }
-                    else if (kvp.Value.Dimensions.Length == 4)
-                    {
-                        // For fixed models, check if it's the expected format (1x3xHxW)
-                        fixedInputSize = kvp.Value.Dimensions[2]; // Height should equal Width for square models
-                    }
+                    isDynamic = true;
                 }
-
-                Log(LogLevel.Info, "Output Metadata:");
-                foreach (var kvp in outputMetadata)
+                else if (kvp.Value.Dimensions.Length == 4)
                 {
-                    string dimensionsStr = string.Join("x", kvp.Value.Dimensions);
-                    Log(LogLevel.Info, $"  Name: {kvp.Key}, Dimensions: {dimensionsStr}");
+                    // For fixed models, store the expected input size
+                    fixedInputSize = kvp.Value.Dimensions[2]; // Height = Width
                 }
-
-                IsDynamicModel = isDynamic;
-                CurrentModelIsDynamic = isDynamic;
-
-                if (IsDynamicModel)
-                {
-                    // For dynamic models, calculate NUM_DETECTIONS based on selected image size
-                    NUM_DETECTIONS = CalculateNumDetections(IMAGE_SIZE);
-                    LoadClasses();
-                    ImageSizeUpdated?.Invoke(IMAGE_SIZE);
-                    Log(LogLevel.Info, $"Loaded dynamic model - using selected image size {IMAGE_SIZE}x{IMAGE_SIZE} with {NUM_DETECTIONS} detections", true, 3000);
-                }
-                else
-                {
-                    // For fixed models, auto-adjust image size if needed
-                    ModelFixedSize = fixedInputSize;
-
-                    // List of supported sizes
-                    var supportedSizes = new[] { "640", "512", "416", "320", "256", "160" };
-                    var fixedSizeStr = fixedInputSize.ToString();
-
-                    if (fixedInputSize != IMAGE_SIZE && supportedSizes.Contains(fixedSizeStr))
-                    {
-                        // Auto-adjust the image size to match the model
-                        Log(LogLevel.Warning,
-                            $"Fixed-size model expects {fixedInputSize}x{fixedInputSize}. Automatically adjusting Image Size setting.",
-                            true, 3000);
-
-                        Dictionary.dropdownState["Image Size"] = fixedSizeStr;
-
-                        // Update the UI dropdown if it exists
-                        Application.Current?.Dispatcher.BeginInvoke(() =>
-                        {
-                            try
-                            {
-                                // Find the MainWindow and update the dropdown
-                                var mainWindow = Application.Current.Windows.OfType<MainWindow>().FirstOrDefault();
-                                if (mainWindow?.SettingsMenuControlInstance != null)
-                                {
-                                    mainWindow.SettingsMenuControlInstance.UpdateImageSizeDropdown(fixedSizeStr);
-                                }
-                            }
-                            catch { }
-                        });
-
-                        // The IMAGE_SIZE property will now return the correct value
-                        NUM_DETECTIONS = CalculateNumDetections(fixedInputSize);
-                        ImageSizeUpdated?.Invoke(fixedInputSize);
-                    }
-                    else if (!supportedSizes.Contains(fixedSizeStr))
-                    {
-                        Log(LogLevel.Error,
-                            $"Model requires unsupported size {fixedInputSize}x{fixedInputSize}. Supported sizes are: {string.Join(", ", supportedSizes)}",
-                            true, 10000);
-                        return false;
-                    }
-
-                    LoadClasses();
-
-                    // For static models, validate the expected shape
-                    var expectedShape = new int[] { 1, 4 + NUM_CLASSES, NUM_DETECTIONS };
-                    if (!outputMetadata.Values.All(metadata => metadata.Dimensions.SequenceEqual(expectedShape)))
-                    {
-                        Log(LogLevel.Error,
-                            $"Output shape does not match the expected shape of {string.Join("x", expectedShape)}.\nThis model will not work with Vector, please use an YOLOv8 model converted to ONNXv8.",
-                            true, 10000);
-                        return false;
-                    }
-
-                    Log(LogLevel.Info, $"Loaded fixed-size model: {fixedInputSize}x{fixedInputSize}", true, 2000);
-                }
-
-                // Notify UI about dynamic model status
-                DynamicModelStatusChanged?.Invoke(IsDynamicModel);
-
-                return true;
             }
 
-            return false;
-        }
+            Log(LogLevel.Info, "Output Metadata:");
+            foreach (var kvp in outputMetadata)
+            {
+                string dimensionsStr = string.Join("x", kvp.Value.Dimensions);
+                Log(LogLevel.Info, $"  Name: {kvp.Key}, Dimensions: {dimensionsStr}");
+            }
 
+            IsDynamicModel = isDynamic;
+            CurrentModelIsDynamic = isDynamic;
+
+            if (IsDynamicModel)
+            {
+                // For dynamic models, NUM_DETECTIONS depends on the currently selected image size
+                NUM_DETECTIONS = CalculateNumDetections(IMAGE_SIZE);
+                LoadClasses();
+                ImageSizeUpdated?.Invoke(IMAGE_SIZE);
+                Log(LogLevel.Info, $"Loaded dynamic model - using selected image size {IMAGE_SIZE}x{IMAGE_SIZE} with {NUM_DETECTIONS} detections", true, 3000);
+            }
+            else
+            {
+                // --- FIX: Always set NUM_DETECTIONS based on the model's fixed input size ---
+                ModelFixedSize = fixedInputSize;
+                NUM_DETECTIONS = CalculateNumDetections(fixedInputSize);   // <-- moved outside the conditional
+
+                // List of supported sizes (for UI)
+                var supportedSizes = new[] { "640", "512", "416", "320", "256", "160" };
+                var fixedSizeStr = fixedInputSize.ToString();
+
+                if (fixedInputSize != IMAGE_SIZE && supportedSizes.Contains(fixedSizeStr))
+                {
+                    // Auto‑adjust the image size setting
+                    Log(LogLevel.Warning,
+                        $"Fixed-size model expects {fixedInputSize}x{fixedInputSize}. Automatically adjusting Image Size setting.",
+                        true, 3000);
+
+                    Dictionary.dropdownState["Image Size"] = fixedSizeStr;
+
+                    // --- FIX: Update internal state immediately ---
+                    _currentImageSize = fixedInputSize;
+                    // Invalidate cached tensors that depend on the old size
+                    _reusableTensor = null;
+                    _reusableInputArray = null;
+
+                    // Update the UI dropdown if it exists
+                    Application.Current?.Dispatcher.BeginInvoke(() =>
+                    {
+                        try
+                        {
+                            var mainWindow = Application.Current.Windows.OfType<MainWindow>().FirstOrDefault();
+                            mainWindow?.SettingsMenuControlInstance?.UpdateImageSizeDropdown(fixedSizeStr);
+                        }
+                        catch { }
+                    });
+
+                    ImageSizeUpdated?.Invoke(fixedInputSize);
+                }
+                else if (!supportedSizes.Contains(fixedSizeStr))
+                {
+                    Log(LogLevel.Error,
+                        $"Model requires unsupported size {fixedInputSize}x{fixedInputSize}. Supported sizes are: {string.Join(", ", supportedSizes)}",
+                        true, 10000);
+                    return false;
+                }
+
+                LoadClasses();
+
+                // Validate the output shape using the correct NUM_DETECTIONS
+                var expectedShape = new int[] { 1, 4 + NUM_CLASSES, NUM_DETECTIONS };
+                if (!outputMetadata.Values.All(metadata => metadata.Dimensions.SequenceEqual(expectedShape)))
+                {
+                    Log(LogLevel.Error,
+                        $"Output shape does not match the expected shape of {string.Join("x", expectedShape)}.\n" +
+                        "This model will not work with Aimmy, please use a YOLOv8 model converted to ONNXv8.",
+                        true, 10000);
+                    return false;
+                }
+
+                Log(LogLevel.Info, $"Loaded fixed-size model: {fixedInputSize}x{fixedInputSize}", true, 2000);
+            }
+
+            // Notify UI about dynamic model status
+            DynamicModelStatusChanged?.Invoke(IsDynamicModel);
+
+            return true;
+        }
         private void LoadClasses()
         {
             if (_onnxModel == null) return;
@@ -490,26 +490,28 @@ namespace Vector2.AILogic
 
             while (_isAiLoopRunning)
             {
-                // Check for pending size changes at the start of each iteration
+                // Cache dictionary values once per loop
+                bool aimAssist = Dictionary.toggleState["Aim Assist"];
+                bool showDetected = Dictionary.toggleState["Show Detected Player"];
+                bool constantTracking = Dictionary.toggleState["Constant AI Tracking"];
+                bool autoTrigger = Dictionary.toggleState["Auto Trigger"];
+                bool predictions = Dictionary.toggleState["Predictions"];
+                string detectionAreaType = Dictionary.dropdownState["Detection Area Type"];
+                bool fovEnabled = Dictionary.toggleState["FOV"];
+                
                 lock (_sizeLock)
                 {
-                    if (_sizeChangePending)
-                    {
-                        // Skip this iteration to allow clean shutdown
-                        continue;
-                    }
+                    if (_sizeChangePending) continue;
                 }
 
                 stopwatch.Restart();
-
-                // Handle any pending display changes
                 _captureManager.HandlePendingDisplayChanges();
 
                 using (Benchmark("AILoopIteration"))
                 {
-                    UpdateFOV();
+                    if (fovEnabled) UpdateFOV();
 
-                    if (ShouldProcess())
+                    if (aimAssist || showDetected || autoTrigger)
                     {
                         if (ShouldPredict())
                         {
@@ -521,41 +523,23 @@ namespace Vector2.AILogic
 
                             if (closestPrediction == null)
                             {
-                                MouseManager.ResetSprayState();
-                                DisableOverlay(DetectedPlayerOverlay!);
+                                if (showDetected) DisableOverlay(DetectedPlayerOverlay!);
                                 continue;
                             }
-                            using (Benchmark("AutoTrigger"))
-                            {
-                                await AutoTrigger();
-                            }
 
-                            using (Benchmark("CalculateCoordinates"))
-                            {
-                                CalculateCoordinates(DetectedPlayerOverlay, closestPrediction, _scaleX, _scaleY);
-                            }
+                            if (autoTrigger) await AutoTrigger();
 
-                            using (Benchmark("HandleAim"))
-                            {
-                                HandleAim(closestPrediction);
-                            }
+                            CalculateCoordinates(DetectedPlayerOverlay, closestPrediction, _scaleX, _scaleY);
+
+                            if (aimAssist) HandleAim(closestPrediction);
 
                             totalTime += stopwatch.ElapsedMilliseconds;
                             iterationCount++;
                         }
-                        else
-                        {
-                            // Processing so we are at the ready but not holding right/click.
-                            await Task.Delay(1);
-                        }
+                        else await Task.Delay(1);
                     }
-                    else
-                    {
-                        // No work to do—sleep briefly to free up CPU
-                        await Task.Delay(1);
-                    }
+                    else await Task.Delay(1);
                 }
-
                 stopwatch.Stop();
             }
         }
@@ -775,53 +759,52 @@ namespace Vector2.AILogic
             double YOffsetPercentage = Dictionary.sliderSettings["Y Offset (%)"];
             double XOffsetPercentage = Dictionary.sliderSettings["X Offset (%)"];
 
-            float screenCenterX = closestPrediction.ScreenCenterX;
-            float screenCenterY = closestPrediction.ScreenCenterY;
-            
             var rect = closestPrediction.Rectangle;
 
+            // Pre-calculate common values
+            float rectCenterX = rect.X + rect.Width / 2;
+            float rectBottomY = rect.Y + rect.Height;
+            
             if (Dictionary.toggleState["X Axis Percentage Adjustment"])
             {
-                float absoluteLeft = screenCenterX - (rect.Width / 2);
-                detectedX = (int)(absoluteLeft + (rect.Width * (XOffsetPercentage / 100)) + XOffset);
+                detectedX = (int)((rect.X + (rect.Width * (XOffsetPercentage / 100))) * scaleX);
             }
             else
             {
-                detectedX = (int)(screenCenterX + XOffset);
+                detectedX = (int)(rectCenterX * scaleX + XOffset);
             }
 
             if (Dictionary.toggleState["Y Axis Percentage Adjustment"])
             {
-                float absoluteTop = screenCenterY - (rect.Height / 2);
-                detectedY = (int)(absoluteTop + rect.Height - (rect.Height * (YOffsetPercentage / 100)) + YOffset);
+                detectedY = (int)((rect.Y + rect.Height - (rect.Height * (YOffsetPercentage / 100))) * scaleY + YOffset);
             }
             else
             {
-                detectedY = CalculateDetectedY(screenCenterY, rect, YOffset);
+                detectedY = CalculateDetectedY(scaleY, YOffset, closestPrediction);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CalculateDetectedY(float screenCenterY, RectangleF rect, double YOffset)
+        private static int CalculateDetectedY(float scaleY, double YOffset, Prediction closestPrediction)
         {
+            var rect = closestPrediction.Rectangle;
+            float yBase = rect.Y;
             float yAdjustment = 0;
 
             switch (Dictionary.dropdownState["Aiming Boundaries Alignment"])
             {
                 case "Center":
-                    // Already at center
-                    break;
-
-                case "Top":
-                    yAdjustment = -rect.Height / 2;
-                    break;
-
-                case "Bottom":
                     yAdjustment = rect.Height / 2;
+                    break;
+                case "Top":
+                    // yBase is already at the top
+                    break;
+                case "Bottom":
+                    yAdjustment = rect.Height;
                     break;
             }
 
-            return (int)(screenCenterY + yAdjustment + YOffset);
+            return (int)((yBase + yAdjustment) * scaleY + YOffset);
         }
         private void HandleAim(Prediction closestPrediction)
         {
@@ -1269,7 +1252,7 @@ namespace Vector2.AILogic
             // sizeFactor: 1.0 for large/close targets, up to 3.0 for small/distant targets
             // This makes distant targets more "sticky" to compensate for detection jitter
             float ratio = REFERENCE_TARGET_SIZE / Math.Max(targetArea, 100f);
-            return Math.Clamp(ratio, 1.0f, 3.0f);
+            return ratio > 3f ? 3f : (ratio < 1f ? 1f : ratio);
         }
 
         private Prediction? HandleNoDetections()
@@ -1356,73 +1339,129 @@ namespace Vector2.AILogic
             float minConfidence = (float)Dictionary.sliderSettings["AI Minimum Confidence"] / 100.0f;
             string selectedClass = Dictionary.dropdownState["Target Class"];
             int selectedClassId = selectedClass == "Best Confidence" ? -1 : _modelClasses.FirstOrDefault(c => c.Value == selectedClass).Key;
-
-            // we dont use kdpoints anymore because we replaced the kd-tree with a linear search
-            //var KDpoints = new List<double[]>(NUM_DETECTIONS); // Pre-allocate with estimated capacity
-            var KDpredictions = new List<Prediction>(NUM_DETECTIONS);
-
-            for (int i = 0; i < NUM_DETECTIONS; i++)
+            
+            int detections = NUM_DETECTIONS;
+            
+            // First pass: confidences (always sequential - it's cheap)
+            float[] confidences = new float[detections];
+            int[] classIds = new int[detections];
+            
+            // Quick confidence check - sequential is fine for this
+            for (int i = 0; i < detections; i++)
             {
-                float x_center = outputTensor[0, 0, i];
-                float y_center = outputTensor[0, 1, i];
-                float width = outputTensor[0, 2, i];
-                float height = outputTensor[0, 3, i];
-
-                int bestClassId = 0;
-                float bestConfidence = 0f;
-
                 if (NUM_CLASSES == 1)
                 {
-                    bestConfidence = outputTensor[0, 4, i];
+                    confidences[i] = outputTensor[0, 4, i];
+                    classIds[i] = 0;
+                }
+                else if (selectedClassId != -1)
+                {
+                    confidences[i] = outputTensor[0, 4 + selectedClassId, i];
+                    classIds[i] = selectedClassId;
                 }
                 else
                 {
-                    if (selectedClassId == -1)
+                    float bestConf = 0;
+                    int bestId = 0;
+                    for (int c = 0; c < NUM_CLASSES; c++)
                     {
-                        for (int classId = 0; classId < NUM_CLASSES; classId++)
+                        float classConf = outputTensor[0, 4 + c, i];
+                        if (classConf > bestConf)
                         {
-                            float classConfidence = outputTensor[0, 4 + classId, i];
-                            if (classConfidence > bestConfidence)
-                            {
-                                bestConfidence = classConfidence;
-                                bestClassId = classId;
-                            }
+                            bestConf = classConf;
+                            bestId = c;
                         }
                     }
-                    else
-                    {
-                        bestConfidence = outputTensor[0, 4 + selectedClassId, i];
-                        bestClassId = selectedClassId;
-                    }
+                    confidences[i] = bestConf;
+                    classIds[i] = bestId;
                 }
-
-                if (bestConfidence < minConfidence) continue;
-
-                float x_min = x_center - width / 2;
-                float y_min = y_center - height / 2;
-                float x_max = x_center + width / 2;
-                float y_max = y_center + height / 2;
-
-                if (x_min < fovMinX || x_max > fovMaxX || y_min < fovMinY || y_max > fovMaxY) continue;
-
-                RectangleF rect = new(x_min, y_min, width, height);
-                Prediction prediction = new()
-                {
-                    Rectangle = rect,
-                    Confidence = bestConfidence,
-                    ClassId = bestClassId,
-                    ClassName = _modelClasses.GetValueOrDefault(bestClassId, $"Class_{bestClassId}"),
-                    CenterXTranslated = x_center / IMAGE_SIZE,
-                    CenterYTranslated = y_center / IMAGE_SIZE,
-                    ScreenCenterX = detectionBox.Left + x_center,
-                    ScreenCenterY = detectionBox.Top + y_center
-                };
-
-                //KDpoints.Add(new double[] { x_center, y_center });
-                KDpredictions.Add(prediction);
             }
-
-            return KDpredictions;
+            
+            // Count high-confidence detections
+            int highConfidenceCount = 0;
+            for (int i = 0; i < detections; i++)
+            {
+                if (confidences[i] >= minConfidence)
+                    highConfidenceCount++;
+            }
+            
+            // Decide whether to use parallel processing based on workload
+            bool useParallel = highConfidenceCount > 100; // Threshold - adjust as needed
+            var predictions = new List<Prediction>(highConfidenceCount);
+            
+            if (useParallel)
+            {
+                // Use parallel for heavy workload
+                var lockObj = new object();
+                
+                Parallel.For(0, detections, i =>
+                {
+                    if (confidences[i] < minConfidence) return;
+                    
+                    float x_center = outputTensor[0, 0, i];
+                    float y_center = outputTensor[0, 1, i];
+                    float width = outputTensor[0, 2, i];
+                    float height = outputTensor[0, 3, i];
+                    
+                    float halfWidth = width / 2;
+                    float halfHeight = height / 2;
+                    
+                    if (x_center - halfWidth < fovMinX || x_center + halfWidth > fovMaxX ||
+                        y_center - halfHeight < fovMinY || y_center + halfHeight > fovMaxY)
+                        return;
+                    
+                    var prediction = new Prediction
+                    {
+                        Rectangle = new RectangleF(x_center - halfWidth, y_center - halfHeight, width, height),
+                        Confidence = confidences[i],
+                        ClassId = classIds[i],
+                        ClassName = _modelClasses.GetValueOrDefault(classIds[i], $"Class_{classIds[i]}"),
+                        CenterXTranslated = x_center / IMAGE_SIZE,
+                        CenterYTranslated = y_center / IMAGE_SIZE,
+                        ScreenCenterX = detectionBox.Left + x_center,
+                        ScreenCenterY = detectionBox.Top + y_center
+                    };
+                    
+                    lock (lockObj)
+                    {
+                        predictions.Add(prediction);
+                    }
+                });
+            }
+            else
+            {
+                // Use sequential for light workload (avoids threading overhead)
+                for (int i = 0; i < detections; i++)
+                {
+                    if (confidences[i] < minConfidence) continue;
+                    
+                    float x_center = outputTensor[0, 0, i];
+                    float y_center = outputTensor[0, 1, i];
+                    float width = outputTensor[0, 2, i];
+                    float height = outputTensor[0, 3, i];
+                    
+                    float halfWidth = width / 2;
+                    float halfHeight = height / 2;
+                    
+                    if (x_center - halfWidth < fovMinX || x_center + halfWidth > fovMaxX ||
+                        y_center - halfHeight < fovMinY || y_center + halfHeight > fovMaxY)
+                        continue;
+                    
+                    predictions.Add(new Prediction
+                    {
+                        Rectangle = new RectangleF(x_center - halfWidth, y_center - halfHeight, width, height),
+                        Confidence = confidences[i],
+                        ClassId = classIds[i],
+                        ClassName = _modelClasses.GetValueOrDefault(classIds[i], $"Class_{classIds[i]}"),
+                        CenterXTranslated = x_center / IMAGE_SIZE,
+                        CenterYTranslated = y_center / IMAGE_SIZE,
+                        ScreenCenterX = detectionBox.Left + x_center,
+                        ScreenCenterY = detectionBox.Top + y_center
+                    });
+                }
+            }
+            
+            return predictions;
         }
 
         #endregion AI Loop Functions

@@ -31,6 +31,7 @@ namespace Vector2.Controls
             { "Aim Config", false },
             { "Predictions", false },
             { "Auto Trigger", false },
+            { "Rapid Fire", false },
             { "FOV Config", false },
             { "ESP Config", false }
         };
@@ -38,6 +39,7 @@ namespace Vector2.Controls
         // Public properties for MainWindow access
         public StackPanel AimAssistPanel => AimAssist;
         public StackPanel TriggerBotPanel => TriggerBot;
+        public StackPanel RapidFirePanel => RapidFire;
         public StackPanel ESPConfigPanel => ESPConfig;
         public StackPanel AimConfigPanel => AimConfig;
         public StackPanel PredictionsPanel => Predictions;
@@ -66,6 +68,7 @@ namespace Vector2.Controls
             LoadAimConfig();
             LoadPredictions();
             LoadTriggerBot();
+            LoadRapidFire();
             LoadFOVConfig();
             LoadESPConfig();
 
@@ -100,6 +103,7 @@ namespace Vector2.Controls
             ApplyPanelState("Aim Config", AimConfigPanel);
             ApplyPanelState("Predictions", PredictionsPanel);
             ApplyPanelState("Auto Trigger", TriggerBotPanel);
+            ApplyPanelState("Rapid Fire", RapidFirePanel);
             ApplyPanelState("FOV Config", FOVConfigPanel);
             ApplyPanelState("ESP Config", ESPConfigPanel);
         }
@@ -315,7 +319,7 @@ namespace Vector2.Controls
         private void AddConfigSliders(SectionBuilder builder, UI uiManager)
         {
             builder
-                .AddSlider("Mouse Sensitivity (+/-)", "Sensitivity", 0.01, 0.01, 0.01, 1, s =>
+                .AddSlider("Mouse Sensitivity (+/-)", "Sensitivity", 0.01, 0.01, 0.01, 0.99, s =>
                 {
                     uiManager.S_MouseSensitivity = s;
                     s.Slider.PreviewMouseLeftButtonUp += (sender, e) =>
@@ -333,20 +337,20 @@ namespace Vector2.Controls
                     tooltip: "Adds random small movements to make aim look more human-like.")
                 .AddToggle("Snap Lock", t => uiManager.T_SnapLock = t,
                     tooltip: "Gradually slow down speed as you get close to a target for an instant lock.")
-                .AddSlider("Approach Speed", "Speed", 0.1, 0.1, 0.1, 1, s =>
+                .AddSlider("Approach Speed", "Percent", 0.05, 0.1, 0.05, 1, s =>
                 {
                     uiManager.S_ApproachSpeed = s;
                     // Set initial visibility based on toggle state
                     s.Visibility = Dictionary.toggleState["Snap Lock"]
                         ? Visibility.Visible : Visibility.Collapsed;
-                }, tooltip: "How move when close to a target. Higher = faster but less stable, Lower = slower but steadier.")
+                }, tooltip: "What percent of the original speed to use. Higher = faster but less stable, Lower = slower but steadier.")
                 .AddSlider("Approach Threshold", "Pixels", 1, 1, 10, 300, s =>
                 {
                     uiManager.S_ApproachThreshold = s;
                     // Set initial visibility based on toggle state
                     s.Visibility = Dictionary.toggleState["Snap Lock"]
                         ? Visibility.Visible : Visibility.Collapsed;
-                }, tooltip: "Distance from target where snap lock activates. Higher = activates sooner.")
+                }, tooltip: "Distance from target where snap lock activates. Higher = activates sooner.")                    
                 .AddToggle("Y Axis Percentage Adjustment", t => uiManager.T_YAxisPercentageAdjustment = t,
                     tooltip: "Enable the Y Offset (%) slider to adjust aim vertically by percentage.")
                 .AddToggle("X Axis Percentage Adjustment", t => uiManager.T_XAxisPercentageAdjustment = t,
@@ -416,6 +420,12 @@ namespace Vector2.Controls
                     // Start collapsed - visibility will be set by LoadDropdownStates
                     s.Visibility = Visibility.Collapsed;
                 }, tooltip: "How far ahead to predict target position. Higher = more prediction, may overshoot.")
+                .AddSlider("Kalman Smoothness", "Amount", 0.01, 0.01, 0.01, 1.00, s =>
+                {
+                    uiManager.S_KalmanSmoothness = s;
+                    // Start collapsed - visibility will be set by LoadDropdownStates
+                    s.Visibility = Visibility.Collapsed;
+                }, tooltip: "How much to smooth out Kalman predictions")
                 .AddSlider("WiseTheFox Lead Time", "Seconds", 0.01, 0.01, 0.02, 0.30, s =>
                 {
                     uiManager.S_WiseTheFoxLeadTime = s;
@@ -476,6 +486,25 @@ namespace Vector2.Controls
                     tooltip: "Wait time before firing after detecting a target. Helps avoid accidental shots.")
                 .AddSeparator();
         }
+        private void LoadRapidFire()
+        {
+            var uiManager = _mainWindow!.uiManager;
+            var builder = new SectionBuilder(this, RapidFire);
+
+            builder
+                .AddTitle("Rapid Fire", true, t =>
+                {
+                    uiManager.AT_RapidFire = t;
+                    t.Minimize.Click += (s, e) => TogglePanel("Rapid Fire", RapidFirePanel);
+                })
+                .AddToggle("Rapid Fire", t => uiManager.T_RapidFire = t,
+                    tooltip: "Automatically spam clicks repeatedly when holding the aim keybind. Good for semi-automatic weapons.")
+                .AddKeyChanger("Rapid Fire Keybind", k => uiManager.C_RapidFireKeybind = k,
+                    tooltip: "The key to hold to activate rapid fire. Usually left click.")    
+                .AddSlider("Rapid Fire Delay", "Milliseconds", 5, 5, 50, 500, s => uiManager.S_RapidFireDelay = s,
+                    tooltip: "Delay between shots when Rapid Fire is active. Higher = slower fire rate, Lower = faster fire rate.")
+                .AddSeparator();
+        }
 
         private void LoadFOVConfig()
         {
@@ -498,6 +527,7 @@ namespace Vector2.Controls
                     tooltip: "The key to hold for switching to the dynamic FOV size.")
                 .AddDropdown("FOV Style", d =>
                 {
+                    d.DropdownBox.SelectedIndex = -1;
                     uiManager.D_FOVSTYLE = d;
 
                     var circleItem = _mainWindow.AddDropdownItem(d, "Circle");

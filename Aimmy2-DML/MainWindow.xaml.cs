@@ -60,6 +60,8 @@ namespace Vector2
         internal Dictionary<string, AToggle> toggleInstances = new();
         private readonly Dictionary<string, UserControl?> _menuControls = new();
         private readonly Dictionary<string, bool> _menuInitialized = new();
+        private Task? _rapidFireTask;
+        private readonly object _rapidFireTaskLock = new();
         private UserControl? _currentControl;
         private string _currentMenu = "AimMenu";
         private bool _currentlySwitching;
@@ -255,11 +257,17 @@ namespace Vector2
             var keybinds = new[]
             {
                 "Aim Keybind", "Second Aim Keybind", "Dynamic FOV Keybind",
-                "Emergency Stop Keybind", "Model Switch Keybind"
+                "Emergency Stop Keybind", "Model Switch Keybind", "Rapid Fire Keybind"
             };
 
             foreach (var keybind in keybinds)
             {
+                // Make sure we have a default value
+                if (!Dictionary.bindingSettings.ContainsKey(keybind))
+                {
+                    Dictionary.bindingSettings[keybind] = "None";
+                }
+                
                 bindingManager.SetupDefault(keybind, Dictionary.bindingSettings[keybind].ToString());
             }
         }
@@ -729,6 +737,27 @@ namespace Vector2
             };
 
             handlers.GetValueOrDefault(bindingId)?.Invoke();
+
+            if (bindingId == "Rapid Fire Keybind" && Dictionary.toggleState["Rapid Fire"])
+            {
+                lock (_rapidFireTaskLock)
+                {
+                    if (_rapidFireTask == null || _rapidFireTask.IsCompleted)
+                    {
+                        _rapidFireTask = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await MouseManager.DoRapidFire();
+                            }
+                            catch (Exception ex)
+                            {
+                                LogManager.Log(LogManager.LogLevel.Error, $"RapidFire failed: {ex.Message}");
+                            }
+                        });
+                    }
+                }
+            }
         }
 
         private void HandleKeybindReleased(string bindingId)
@@ -801,8 +830,8 @@ namespace Vector2
         */
         private void HandleEmergencyStop()
         {
-            var features = new[] { "Aim Assist", "Constant AI Tracking", "Auto Trigger" };
-            var toggles = new[] { uiManager.T_AimAligner, uiManager.T_ConstantAITracking, uiManager.T_AutoTrigger };
+            var features = new[] { "Aim Assist", "Constant AI Tracking", "Auto Trigger", "Rapid Fire" };
+            var toggles = new[] { uiManager.T_AimAligner, uiManager.T_ConstantAITracking, uiManager.T_AutoTrigger, uiManager.T_RapidFire };
 
             for (int i = 0; i < features.Length; i++)
             {
@@ -893,6 +922,11 @@ namespace Vector2
                     ["Razer Synapse (Require Razer Peripheral)"] = 4,
                     ["ddxoft Virtual Input Driver"] = 5,
                     ["Makcu"] = 6,
+                }),
+                (uiManager.D_FOVSTYLE, "FOV Style", new Dictionary<string, int>
+                {
+                    ["Circle"] = 0,
+                    ["Rectangle"] = 1
                 }),
                 (uiManager.D_ScreenCaptureMethod, "Screen Capture Method", new Dictionary<string, int>
                 {
@@ -1011,8 +1045,10 @@ namespace Vector2
                 ("Y Offset (%)", uiManager.S_YOffsetPercent, 0.0),
                 ("X Offset (%)", uiManager.S_XOffsetPercent, 0.0),
                 ("Auto Trigger Delay", uiManager.S_AutoTriggerDelay, 0.25),
+                ("Rapid Fire Delay", uiManager.S_RapidFireDelay, 100),
                 ("AI Minimum Confidence", uiManager.S_AIMinimumConfidence, 50.0),
                 ("Kalman Lead Time", uiManager.S_KalmanLeadTime, 0.10),
+                ("Kalman Smoothness", uiManager.S_KalmanSmoothness, 0.5),
                 ("WiseTheFox Lead Time", uiManager.S_WiseTheFoxLeadTime, 0.15),
                 ("Shalloe Lead Multiplier", uiManager.S_ShalloeLeadMultiplier, 3.0),
                 ("Static Prediction Offset", uiManager.S_StaticPredictionOffset, 1.0),
@@ -1059,14 +1095,23 @@ namespace Vector2
                     ["ddxoft Virtual Input Driver"] = 5,
                     ["Makcu"] = 6,
                 }),
-
+                ("FOV Style", uiManager.D_FOVSTYLE, new Dictionary<string, int>
+                {
+                    ["Circle"] = 0,
+                    ["Rectangle"] = 1
+                }),
+                ("Screen Capture Method", uiManager.D_ScreenCaptureMethod, new Dictionary<string, int>
+                {
+                    ["DirectX"] = 0,
+                    ["GDI+"] = 1
+                }),
                 ("Movement Path", uiManager.D_MovementPath, new Dictionary<string, int>
                 {
                     ["Cubic Bezier"] = 0,
-                    ["Exponential"] = 1,
-                    ["Adaptive"] = 2,
-                    ["Perlin Noise"] = 3,
-                    ["Smoothstep"] = 4
+                    ["Smoothstep"] = 1,
+                    ["Exponential"] = 2,
+                    ["Adaptive"] = 3,
+                    ["Perlin Noise"] = 4
                 }),
 
                 ("Tracer Position", uiManager.D_TracerPosition, new Dictionary<string, int>
@@ -1093,6 +1138,8 @@ namespace Vector2
             // Hide all prediction sliders first
             if (uiManager.S_KalmanLeadTime != null)
                 uiManager.S_KalmanLeadTime.Visibility = Visibility.Collapsed;
+            if (uiManager.S_KalmanSmoothness != null) 
+                uiManager.S_KalmanSmoothness.Visibility = Visibility.Collapsed;   
             if (uiManager.S_WiseTheFoxLeadTime != null)
                 uiManager.S_WiseTheFoxLeadTime.Visibility = Visibility.Collapsed;
             if (uiManager.S_ShalloeLeadMultiplier != null)
@@ -1100,7 +1147,6 @@ namespace Vector2
             if (uiManager.S_StaticPredictionOffset != null)
                 uiManager.S_StaticPredictionOffset.Visibility = Visibility.Collapsed;    
 
-            // Don't show sliders if Predictions section is collapsed
             if (Dictionary.minimizeState.TryGetValue("Predictions", out var collapsed) && collapsed == true)
                 return;
 
@@ -1114,6 +1160,8 @@ namespace Vector2
                 case "Kalman Filter":
                     if (uiManager.S_KalmanLeadTime != null)
                         uiManager.S_KalmanLeadTime.Visibility = Visibility.Visible;
+                    if (uiManager.S_KalmanSmoothness != null)
+                        uiManager.S_KalmanSmoothness.Visibility = Visibility.Visible;    
                     break;
                 case "Shall0e's Prediction":
                     if (uiManager.S_ShalloeLeadMultiplier != null)

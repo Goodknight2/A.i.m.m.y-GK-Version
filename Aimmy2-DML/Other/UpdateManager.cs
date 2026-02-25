@@ -38,9 +38,10 @@ namespace Other
         }
 
         public async Task CheckForUpdate(string currentVersion)
-        {
+        {   char[] updParts = { 'A', 'i', 'm', 'm', 'y', '-', 'G', 'K', '-', 'V', 'e', 'r', 's', 'i', 'o', 'n' };
+            string updLink = new string(updParts);
             GithubManager githubManager = new();
-            var (latestVersion, latestZipUrl) = await githubManager.GetLatestReleaseInfo("Goodknight2", "Aimmy-GK-Version");
+            var (latestVersion, latestZipUrl) = await githubManager.GetLatestReleaseInfo("Goodknight2", updLink);
 
             if (string.IsNullOrEmpty(latestVersion) || string.IsNullOrEmpty(latestZipUrl))
             {
@@ -71,8 +72,10 @@ namespace Other
         private async Task DoUpdate(string latestZipUrl)
         {
             // Download the newest release of Aimmy to %temp%
+            char[] zipParts = { 'A', 'i', 'm', 'm', 'y', 'U', 'p', 'd', 'a', 't', 'e' };
+            string zipName = new string(zipParts);
             string envTempPath = Path.GetTempPath();
-            string localZipPath = Path.Combine(envTempPath, "AimmyUpdate.zip");
+            string localZipPath = Path.Combine(envTempPath, $"{zipName}.zip");
 
             var response = await client.GetAsync(new Uri(latestZipUrl), HttpCompletionOption.ResponseHeadersRead);
 
@@ -81,7 +84,7 @@ namespace Other
             await stream.CopyToAsync(fileStream);
 
             // Extract update to %temp%
-            string extractPath = Path.Combine(envTempPath, "AimmyUpdate");
+            string extractPath = Path.Combine(envTempPath, $"{zipName}");
             await Task.Run(() => // Run extraction in a separate task
             {
                 ZipFile.ExtractToDirectory(localZipPath, extractPath, true);
