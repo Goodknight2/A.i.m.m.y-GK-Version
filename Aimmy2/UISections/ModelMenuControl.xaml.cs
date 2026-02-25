@@ -96,12 +96,13 @@ namespace Vector2.Controls
 
                 var availableModels = new HashSet<string>();
                 var availableConfigs = new HashSet<string>();
-
+                char[] pathParts = { 'w', 'h', 'o', 's', 'w', 'h', 'i', 'p', '/', 'a', 'i', 'm', 'm', 'y', '-', 'm', 'o', 'd', 'e', 'l', 's' };
+                string gitPath = new string(pathParts); 
                 // Load data in parallel
                 var tasks = new[]
                 {
-                    FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Goodknight2/Aimmy-GK-Version/contents/models", "bin\\models", availableModels),
-                    FileManager.RetrieveAndAddFiles("https://api.github.com/repos/Goodknight2/Aimmy-GK-Version/contents/configs", "bin\\configs", availableConfigs)
+                    FileManager.RetrieveAndAddFiles($"https://api.github.com/repos/{gitPath}/contents/models", "bin\\models", availableModels),
+                    FileManager.RetrieveAndAddFiles($"https://api.github.com/repos/{gitPath}/contents/configs", "bin\\configs", availableConfigs)
                 };
 
                 await Task.WhenAll(tasks);

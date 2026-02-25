@@ -8,6 +8,9 @@ using MouseMovementLibraries.ArduinoSupport;
 using MouseMovementLibraries.MakcuSupport;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using Other;
+using LogLevel = Other.LogManager.LogLevel;
+using System.Windows.Forms;
 
 namespace InputLogic
 {
@@ -15,6 +18,7 @@ namespace InputLogic
     {
         private static readonly double ScreenWidth = WinAPICaller.ScreenWidth;
         private static readonly double ScreenHeight = WinAPICaller.ScreenHeight;
+        private static bool _isRapidFireActive = false;
 
         private static DateTime LastClickTime = DateTime.MinValue;
         private static bool isSpraying = false;
@@ -85,6 +89,71 @@ namespace InputLogic
             return (mouseDownAction, mouseUpAction);
         }
 
+        public static async Task DoRapidFire()
+        {
+            if (!Dictionary.toggleState["Rapid Fire"])
+            {
+                return;
+            }
+            
+            double fireDelay = Dictionary.sliderSettings["Rapid Fire Delay"];
+            string fireKeybind = Dictionary.bindingSettings["Rapid Fire Keybind"];
+            bool isLeftClickBind = fireKeybind == "Left";
+
+            var (mouseDown, mouseUp) = GetMouseActions();
+
+            // For left click, we need to track expected release times
+            if (isLeftClickBind)
+            {
+                // Make sure the binding is actually held before starting
+                if (!InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
+                    return;
+                    
+                try
+                {
+                    while (InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
+                    {
+                        // Simulate mouse down
+                        mouseDown.Invoke();
+                        
+                        // Wait for the fire delay
+                        await Task.Delay((int)fireDelay);
+                        
+                        // Mark when we expect this mouse up to happen (now)
+                        // We use UtcNow for consistency
+                        InputBindingManager.MarkExpectedRelease(MouseButtons.Left, DateTime.UtcNow);
+                        
+                        // Simulate mouse up
+                        mouseUp.Invoke();
+                        
+                        // Wait before next cycle
+                        await Task.Delay((int)fireDelay);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogManager.Log(LogManager.LogLevel.Error, $"RapidFire exception: {ex.Message}");
+                }
+            }
+            else
+            {
+                // For keyboard keys, use the normal approach
+                try
+                {
+                    while (InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
+                    {
+                        mouseDown.Invoke();
+                        await Task.Delay((int)fireDelay);
+                        mouseUp.Invoke();
+                        await Task.Delay((int)fireDelay);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogManager.Log(LogManager.LogLevel.Error, $"RapidFire exception: {ex.Message}");
+                }
+            }
+        }
         public static async Task DoTriggerClick(RectangleF? detectionBox = null)
         {
             // Early release if no keybinds held
@@ -173,30 +242,19 @@ namespace InputLogic
             string movementPath = Dictionary.dropdownState["Movement Path"];
             string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
             bool autoTrigger = Dictionary.toggleState["Auto Trigger"];
-            string aimType = Dictionary.dropdownState["Detection Area Type"];
             
             bool emaEnabled = IsEMASmoothingEnabled;
             double cachedSmoothingFactor = smoothingFactor;
             double cachedPreviousX = previousX;
             double cachedPreviousY = previousY;
 
+            int halfScreenWidth = (int)ScreenWidth / 2;
+            int halfScreenHeight = (int)ScreenHeight / 2;  
+
             var currentMousePos = WinAPICaller.GetCursorPosition();
 
-            int targetX;
-            int targetY;
-            // if (aimType?.ToString() == "Closest to Center Screen")
-            // {
-                // int halfScreenWidth = (int)ScreenWidth / 2;
-                // int halfScreenHeight = (int)ScreenHeight / 2;
-                
-                // targetX = detectedX - halfScreenWidth;
-                // targetY = detectedY - halfScreenHeight;
-            // }
-            // else
-            // {
-                targetX = detectedX - currentMousePos.X;
-                targetY = detectedY - currentMousePos.Y;
-            // }
+            int targetX = detectedX - halfScreenWidth;
+            int targetY = detectedY - halfScreenHeight;
 
             double aspectRatioCorrection = ScreenWidth / ScreenHeight;
 
@@ -262,34 +320,34 @@ namespace InputLogic
             switch (Dictionary.dropdownState["Mouse Movement Method"])
             {
                 case "Arduino":
-                    GetArduinoMouse().SendMouseCommand(newPosition.X, newPosition.Y, 0);
+                    GetArduinoMouse().SendMouseCommand(moveX, moveY, 0);
                     break;
                 case "SendInput":
-                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, newPosition.X, newPosition.Y);
+                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, moveX, moveY);
                     break;
 
                 case "LG HUB":
-                    LGMouse.Move(0, newPosition.X, newPosition.Y, 0);
+                    LGMouse.Move(0, moveX, moveY, 0);
                     break;
 
                 case "Razer Synapse (Require Razer Peripheral)":
-                    RZMouse.mouse_move(newPosition.X, newPosition.Y, true);
+                    RZMouse.mouse_move(moveX, moveY, true);
                     break;
 
                 case "ddxoft Virtual Input Driver":
-                    DdxoftMain.ddxoftInstance.movR!(newPosition.X, newPosition.Y);
+                    DdxoftMain.ddxoftInstance.movR!(moveX, moveY);
                     break;
                 case "Makcu":
-                    MakcuMain.MakcuInstance.Move(newPosition.X, newPosition.Y);
+                    MakcuMain.MakcuInstance.Move(moveX, moveY);
                     break; 
 
                 default:
-                    mouse_event(MOUSEEVENTF_MOVE, (uint)newPosition.X, (uint)newPosition.Y, 0, 0);
+                    mouse_event(MOUSEEVENTF_MOVE, (uint)moveX, (uint)moveY, 0, 0);
                     break;
             }
 
 
-            if (!Dictionary.toggleState["Auto Trigger"])
+            if (!autoTrigger)
             {
                 ResetSprayState();
             }

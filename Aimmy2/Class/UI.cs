@@ -41,6 +41,7 @@ namespace Class
         public ASlider? S_XOffsetPercent { get; set; }
         public ASlider? S_EMASmoothing { get; set; }
         public ASlider? S_KalmanLeadTime { get; set; }
+        public ASlider? S_KalmanSmoothness { get; set; }
         public ASlider? S_WiseTheFoxLeadTime { get; set; }
         public ASlider? S_ShalloeLeadMultiplier { get; set; }
         public ASlider? S_StaticPredictionOffset { get; set; }
@@ -55,6 +56,12 @@ namespace Class
         public AToggle? T_CursorCheck { get; set; }
 
         public ASlider? S_AutoTriggerDelay { get; set; }
+
+        // Rapid Fire
+        public ATitle? AT_RapidFire { get; set; }
+        public AToggle? T_RapidFire { get; set; }
+        public ASlider? S_RapidFireDelay { get; set; }
+        public AKeyChanger? C_RapidFireKeybind { get; set; }
 
         // FOV
         public ATitle? AT_FOV { get; set; }

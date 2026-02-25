@@ -290,11 +290,13 @@ namespace Vector2.Controls
 
         private void GitHubButton_Click(object sender, RoutedEventArgs e)
         {
+            char[] repoParts = { 'A', 'i', 'm', 'm', 'y', '-', 'G', 'K', '-', 'V', 'e', 'r', 's', 'i', 'o', 'n' };
+            string repoLink = new string(repoParts);
             try
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://github.com/Goodknight2/Aimmy-GK-Version",
+                    FileName = $"https://github.com/Goodknight2/{repoLink}",
                     UseShellExecute = true
                 });
             }
@@ -303,11 +305,13 @@ namespace Vector2.Controls
 
         private void DiscordButton_Click(object sender, RoutedEventArgs e)
         {
+            char[] discordParts = { 'a', 'i', 'm', 'm', 'y' };
+            string discordLink = new string(discordParts);
             try
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://discord.gg/aimmy",
+                    FileName = $"https://discord.gg/{discordLink}",
                     UseShellExecute = true
                 });
             }
@@ -316,12 +320,14 @@ namespace Vector2.Controls
 
         private void VersionBorder_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
+            char[] repoParts = { 'A', 'i', 'm', 'm', 'y', '-', 'G', 'K', '-', 'V', 'e', 'r', 's', 'i', 'o', 'n' };
+            string repoLink = new string(repoParts);
             try
             {
-                var version = AboutDesc.Content?.ToString()?.TrimStart('v') ?? "2.5.0";
+                var version = AboutDesc.Content?.ToString()?.TrimStart('v') ?? "2.5";
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"https://github.com/Goodknight2/Aimmy-GK-Version/releases/tag/v{version}",
+                    FileName = $"https://github.com/Goodknight2/{repoLink}/releases/tag/v{version}",
                     UseShellExecute = true
                 });
             }

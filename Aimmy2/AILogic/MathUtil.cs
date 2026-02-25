@@ -1,5 +1,6 @@
 ﻿using Vector2.AILogic;
 using System.Drawing;
+using System.Numerics;
 using System.Drawing.Imaging;
 using System.Runtime.CompilerServices;
 
@@ -7,6 +8,13 @@ namespace AILogic
 {
     public static class MathUtil
     {
+        private const uint SignMask32 = 0x80000000u;
+        private const uint ExpMask32 = 0x7F800000u;
+        private const uint MantMask32 = 0x007FFFFFu;
+
+        private const uint SignMask16 = 0x8000u;
+        private const uint ExpMask16 = 0x7C00u;
+        private const uint MantMask16 = 0x03FFu;
         public static Func<double[], double[], double> L2Norm_Squared_Double = (x, y) =>
         {
             double dist = 0f;
@@ -79,7 +87,101 @@ namespace AILogic
                 lut[i] = i / 255f;
             return lut;
         }
+        #region Half-precision float conversion
+        // references: https://devblogs.microsoft.com/dotnet/introducing-the-half-type/
+        // https://stackoverflow.com/questions/76799117/how-to-convert-a-float-to-a-half-type-and-the-other-way-around-in-c (in C)
+        // https://stackoverflow.com/questions/3026441/float32-to-float16
+        // I would just like to say now, that python users are extremely lucky: https://onnxruntime.ai/docs/performance/model-optimizations/float16.html
 
+
+        /// <summary>
+        /// convert single-precision (32-bit) float to half-precision (16-bit) float stored in ushort
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ushort FloatToHalfBits(float f)
+        {
+            uint fbits = BitConverter.SingleToUInt32Bits(f);
+            uint sign = (fbits >> 16) & SignMask16;
+            uint val = fbits & ~SignMask32;
+
+            // exactly equal means infinity otherwise its NaN
+            // NaN / Inf
+            if (val >= ExpMask32)
+            {
+                if (val == ExpMask32)
+                    return (ushort)(sign | ExpMask16); // Inf
+
+                // NaN: preserve top mantissa bits
+                return (ushort)(sign | ExpMask16 | ((fbits & MantMask32) >> 13));
+            }
+
+            // Too small for normalized half
+            if (val < 0x38800000u) // (113 << 23) 
+            {
+                // subnormal half
+                uint mant = (fbits & MantMask32) | (1u << 23);
+                int shift = (113 - (int)(fbits >> 23));
+
+                if (shift < 24)
+                {
+                    uint res = (mant + (1u << (shift - 1)) + ((mant >> shift) & 1u)) >> shift;
+                    return (ushort)(sign | (res & MantMask16));
+                }
+
+                return (ushort)sign; // underflow to zero
+            }
+
+            // Normalized
+            uint exp = ((fbits >> 23) - 127 + 15) & 0x1Fu;
+            uint mantissa = (fbits >> 13) & MantMask16;
+            return (ushort)(sign | (exp << 10) | mantissa); // store as 16 bit
+        }
+
+        /// <summary>
+        ///  convert half-precision (16-bit) float stored in ushort to single-precision (32-bit) float
+        /// </summary>
+        /// <param name="h"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float HalfBitsToFloat(ushort h)
+        {
+            uint sign = (uint)(h & SignMask16) << 16;
+            uint exp = (uint)(h & ExpMask16) >> 10;
+            uint mant = (uint)(h & MantMask16);
+
+            uint fbits;
+
+            if (exp == 0)
+            {
+                if (mant == 0)
+                {
+                    fbits = sign; // Zero
+                }
+                else
+                {
+                    // normalize with bit scan
+                    int shift = BitOperations.LeadingZeroCount(mant) - 21; // adjust to align to float mantissa
+                    mant <<= shift;
+                    uint exp32 = (uint)(127 - 14 - shift); // 127 bias - 15 bias + 1
+                    fbits = sign | (exp32 << 23) | ((mant & MantMask16) << 13);
+                }
+            }
+            else if (exp == 0x1F)
+            {
+                // Inf or NaN
+                fbits = sign | ExpMask32 | (mant << 13);
+            }
+            else
+            {
+                uint exp32 = exp - 15 + 127;
+                fbits = sign | (exp32 << 23) | (mant << 13);
+            }
+
+            return BitConverter.UInt32BitsToSingle(fbits);
+        }
+        #endregion
         // this new function reduces gc pressure as i stopped using array.copy
         // REFERENCE: https://www.codeproject.com/Articles/617613/Fast-Pixel-Operations-in-NET-With-and-Without-unsa
         public static unsafe void BitmapToFloatArrayInPlace(Bitmap image, float[] result, int IMAGE_SIZE)

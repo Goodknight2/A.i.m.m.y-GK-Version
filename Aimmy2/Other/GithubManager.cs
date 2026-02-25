@@ -10,8 +10,10 @@ namespace Vector2.Other
 
         public GithubManager()
         {
+            char[] userAgentParts = { 'A', 'i', 'm', 'm', 'y', '2' };
+            string userAgent = new string(userAgentParts);
             httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "Aimmy2");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", userAgent);
             httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
         }
 
