@@ -94,7 +94,6 @@ namespace Vector2.AILogic
         private int _consecutiveFramesWithoutTarget = 0;
         private const int MAX_FRAMES_WITHOUT_TARGET = 3; // Allow 3 frames of target loss
 
-        // Enhanced Sticky Aim State
         private float _lastTargetVelocityX = 0f;
         private float _lastTargetVelocityY = 0f;
         private float _targetLockScore = 0f;           // Accumulated "stickiness" score
@@ -113,6 +112,8 @@ namespace Vector2.AILogic
 
         private int detectedX { get; set; }
         private int detectedY { get; set; }
+
+        private bool _targetInsideActionFov = true;
 
         public double AIConf = 0;
         private static int targetX, targetY;
@@ -622,11 +623,7 @@ namespace Vector2.AILogic
                 // Cache dictionary values once per loop
                 bool aimAssist = Dictionary.toggleState["Aim Assist"];
                 bool showDetected = Dictionary.toggleState["Show Detected Player"];
-                bool constantTracking = Dictionary.toggleState["Constant AI Tracking"];
                 bool autoTrigger = Dictionary.toggleState["Auto Trigger"];
-                bool predictions = Dictionary.toggleState["Predictions"];
-                string detectionAreaType = Dictionary.dropdownState["Detection Area Type"];
-                bool fovEnabled = Dictionary.toggleState["FOV"];
                 
                 lock (_sizeLock)
                 {
@@ -638,7 +635,7 @@ namespace Vector2.AILogic
 
                 using (Benchmark("AILoopIteration"))
                 {
-                    if (fovEnabled) UpdateFOV();
+                    if (Dictionary.toggleState["FOV"]) UpdateFOV();
 
                     if (aimAssist || showDetected || autoTrigger)
                     {
@@ -801,6 +798,7 @@ namespace Vector2.AILogic
 
             Application.Current.Dispatcher.Invoke(() =>
             {
+                Dictionary.FOVWindow.SetActionFovVisibility(Dictionary.toggleState["FOV Action"]);
                 if (Dictionary.toggleState["Show AI Confidence"])
                 {
                     DetectedPlayerOverlay.DetectedPlayerConfidence.Opacity = 1;
@@ -939,7 +937,7 @@ namespace Vector2.AILogic
         private void HandleAim(Prediction closestPrediction)
         {
 
-            if (Dictionary.toggleState["Aim Assist"] &&
+            if (!((Dictionary.toggleState["FOV Action"] && !_targetInsideActionFov) ? true : false) && Dictionary.toggleState["Aim Assist"] &&
                 (Dictionary.toggleState["Constant AI Tracking"] ||
                 Dictionary.toggleState["Aim Assist"] && InputBindingManager.IsHoldingBinding("Aim Keybind") ||
                 Dictionary.toggleState["Aim Assist"] && InputBindingManager.IsHoldingBinding("Second Aim Keybind")))
@@ -1212,6 +1210,7 @@ namespace Vector2.AILogic
 
                 if (KDPredictions.Count == 0)
                 {
+                    _targetInsideActionFov = false;
                     SaveFrame(frame);
                     return null;
                 }
@@ -1247,11 +1246,12 @@ namespace Vector2.AILogic
                 Prediction? finalTarget = HandleStickyAim(bestCandidate, KDPredictions);
                 if (finalTarget != null)
                 {
-                    UpdateDetectionBox(finalTarget); // Removed detectionBox parameter
+                    _targetInsideActionFov = IsInsideActionFov(finalTarget);
+                    UpdateDetectionBox(finalTarget);
                     SaveFrame(frame, finalTarget);
                     return finalTarget;
                 }
-
+                _targetInsideActionFov = false;
                 return null;
             }
             finally
@@ -1368,6 +1368,27 @@ namespace Vector2.AILogic
             return dx * dx + dy * dy;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private float GetActionFovDiameter()
+        {
+            float max = (float)Dictionary.sliderSettings["FOV Size"];
+            float value = (float)Dictionary.sliderSettings["FOV Action Size"];
+            return Math.Clamp(value, 10f, max);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool IsInsideActionFov(Prediction prediction)
+        {
+            if ((!Dictionary.toggleState["FOV Action"]))
+            {
+                return true;
+            }
+            float num = (float)IMAGE_SIZE / 2f;
+            float x = prediction.CenterXTranslated * (float)IMAGE_SIZE;
+            float y = prediction.CenterYTranslated * (float)IMAGE_SIZE;
+            float num2 = GetActionFovDiameter() / 2f;
+            return GetDistanceSq(x, y, num, num) <= num2 * num2;
+        }
         /// <summary>
         /// Returns a scaling factor based on target size. Smaller targets (further away) get higher factors
         /// to make thresholds more forgiving and filtering more aggressive.

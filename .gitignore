@@ -12,6 +12,9 @@
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
+build.bat
+clean.bat
+restore.bat
 
 # Mono auto generated files
 mono_crash.*

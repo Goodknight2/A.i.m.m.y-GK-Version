@@ -606,6 +606,12 @@ namespace Vector2
                 },
                 ["Sticky Aim"] = () => UpdateSliderVisibility(uiManager),
                 ["Snap Lock"] = () => UpdateSliderVisibility(uiManager),
+                ["Dynamic FOV"] = () => UpdateFOVConfigSliderVisibility(),
+                ["FOV Action"] = () => 
+                { 
+                    UpdateFOVConfigSliderVisibility();
+                    MainWindow.FOVWindow.SetActionFovVisibility(Dictionary.toggleState[title]);
+                },
                 ["Show Detected Player"] = () =>
                 {
                     ShowHideDPWindow();
@@ -662,7 +668,6 @@ namespace Vector2
             if (uiManager.S_XOffsetPercent != null)
                 uiManager.S_XOffsetPercent.Visibility = useXPercent ? Visibility.Visible : Visibility.Collapsed;
         }
-
         private Visibility GetToggleVisibility(string title, bool collapsed = false) =>
             Dictionary.toggleState[title]
                 ? Visibility.Visible
@@ -814,8 +819,12 @@ namespace Vector2
         private void AnimateFOVSize(double targetSize)
         {
             var duration = TimeSpan.FromMilliseconds(500);
+            dynamic val = Convert.ToDouble(Dictionary.sliderSettings["FOV Action Size"]);
+            dynamic val2 = Math.Clamp(val, 10, targetSize);
             Animator.WidthShift(duration, FOVWindow.Circle, FOVWindow.Circle.ActualWidth, targetSize);
             Animator.HeightShift(duration, FOVWindow.Circle, FOVWindow.Circle.ActualHeight, targetSize);
+            Animator.WidthShift(duration, FOVWindow.ActionCircle, FOVWindow.ActionCircle.ActualWidth, val2);
+            Animator.HeightShift(duration, FOVWindow.ActionCircle, FOVWindow.ActionCircle.ActualHeight, val2);
             Animator.WidthShift(duration, FOVWindow.RectangleShape, FOVWindow.RectangleShape.ActualWidth, targetSize);
             Animator.HeightShift(duration, FOVWindow.RectangleShape, FOVWindow.RectangleShape.ActualHeight, targetSize);
         }
@@ -1034,8 +1043,8 @@ namespace Vector2
             var sliderConfigs = new[]
             {
                 ("FOV Size", uiManager.S_FOVSize, 640.0),
-                ("Mouse Sensitivity (+/-)", uiManager.S_MouseSensitivity, 0.8),
-                ("Mouse Jitter", uiManager.S_MouseJitter, 0.0),
+                ("Mouse Sensitivity X", uiManager.S_MouseSensitivityX, 0.8),
+                ("Mouse Sensitivity Y", uiManager.S_MouseSensitivityY, 0.8),
                 ("Sticky Aim Threshold", uiManager.S_StickyAimThreshold, 50),
                 ("Approach Speed", uiManager.S_ApproachSpeed, 0.0),
                 ("Approach Threshold", uiManager.S_ApproachThreshold, 0.0),
@@ -1195,7 +1204,17 @@ namespace Vector2
                     ? Visibility.Visible : Visibility.Collapsed;
             }
         }
-
+        public void UpdateFOVConfigSliderVisibility()
+        {
+            if (uiManager.S_FOVActionSize != null)
+            {
+                uiManager.S_FOVActionSize.Visibility = ((!(Dictionary.toggleState["FOV Action"] ? true : false)) ? Visibility.Collapsed : Visibility.Visible);
+            }
+            if (uiManager.S_DynamicFOVSize != null)
+            {
+                uiManager.S_DynamicFOVSize.Visibility = ((!(Dictionary.toggleState["Dynamic FOV"] ? true : false)) ? Visibility.Collapsed : Visibility.Visible);
+            }
+        }
         public void UpdateAimConfigSliderVisibility()
         {
             // Don't show sliders if Aim Config section is collapsed

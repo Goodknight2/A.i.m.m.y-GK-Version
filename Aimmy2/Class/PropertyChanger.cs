@@ -12,8 +12,9 @@
 
         // FOV Color
         public static void PostColor(System.Windows.Media.Color newcolor) => ReceiveColor?.Invoke(newcolor);
-
+        public static void PostActionColor(System.Windows.Media.Color newcolor) {ReceiveActionColor?.Invoke(newcolor);}
         public static Action<System.Windows.Media.Color>? ReceiveColor { private get; set; } = null;
+        public static Action<System.Windows.Media.Color>? ReceiveActionColor { private get; set; } = null;
 
         // Detected Player Color
         public static void PostDPColor(System.Windows.Media.Color newcolor) => ReceiveDPColor?.Invoke(newcolor);

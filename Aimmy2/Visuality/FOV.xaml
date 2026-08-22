@@ -36,6 +36,12 @@
                Height="640"
                Stroke="Red" />
 
+            <Ellipse x:Name="ActionCircle"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Center"
+             Width="320"
+             Height="320"
+             Stroke="Red" />
         </Grid>
 
     </Grid>
