@@ -112,6 +112,7 @@ namespace Vector2.Class
             { "Aiming Boundaries Alignment", "Center" },
             { "Mouse Movement Method", "Mouse Event" },
             { "Screen Capture Method", "DirectX" },
+            { "ESP Box Style", "Box" },
             { "Tracer Position", "Bottom" },
             { "FOV Style", "Circle" },
             { "Movement Path", "Cubic Bezier" },

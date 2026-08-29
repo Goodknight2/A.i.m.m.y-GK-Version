@@ -932,10 +932,22 @@ namespace Vector2
                     ["ddxoft Virtual Input Driver"] = 5,
                     ["Makcu"] = 6,
                 }),
+                (uiManager.D_TracerPosition, "Tracer Position", new Dictionary<string, int>
+                {
+                    ["Top"] = 0,
+                    ["Middle"] = 1,
+                    ["Bottom"] = 2
+                }),
                 (uiManager.D_FOVSTYLE, "FOV Style", new Dictionary<string, int>
                 {
                     ["Circle"] = 0,
                     ["Rectangle"] = 1
+                }),
+                (uiManager.D_ESPBoxStyle, "ESP Box Style", new Dictionary<string, int>
+                {
+                    ["Box"] = 0,
+                    ["Corner Box"] = 1,
+                    ["Highlight"] = 2
                 }),
                 (uiManager.D_ScreenCaptureMethod, "Screen Capture Method", new Dictionary<string, int>
                 {
@@ -1104,10 +1116,22 @@ namespace Vector2
                     ["ddxoft Virtual Input Driver"] = 5,
                     ["Makcu"] = 6,
                 }),
+                ("Tracer Position", uiManager.D_TracerPosition, new Dictionary<string, int>
+                {
+                    ["Top"] = 0,
+                    ["Middle"] = 1,
+                    ["Bottom"] = 2,
+                }),
                 ("FOV Style", uiManager.D_FOVSTYLE, new Dictionary<string, int>
                 {
                     ["Circle"] = 0,
                     ["Rectangle"] = 1
+                }),
+                ("ESP Box Style", uiManager.D_ESPBoxStyle, new Dictionary<string, int>
+                {
+                    ["Box"] = 0,
+                    ["Corner Box"] = 1,
+                    ["Highlight"] = 2
                 }),
                 ("Screen Capture Method", uiManager.D_ScreenCaptureMethod, new Dictionary<string, int>
                 {

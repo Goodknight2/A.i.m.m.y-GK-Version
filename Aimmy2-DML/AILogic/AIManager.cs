@@ -650,6 +650,8 @@ namespace Vector2.AILogic
                     }
 
                     DetectedPlayerOverlay!.DetectedPlayerFocus.Opacity = 0;
+                    DetectedPlayerOverlay!.DetectedPlayerCornerBox.Opacity = 0;
+                    DetectedPlayerOverlay!.DetectedPlayerHighlight.Opacity = 0;
                 });
             }
         }
@@ -731,11 +733,43 @@ namespace Vector2.AILogic
 
                 DetectedPlayerOverlay.Opacity = Dictionary.sliderSettings["Opacity"];
 
-                DetectedPlayerOverlay.DetectedPlayerFocus.Opacity = 1;
-                DetectedPlayerOverlay.DetectedPlayerFocus.Margin = new Thickness(
-                    centerX - (LastDetectionBox.Width / 2.0), centerY, 0, 0);
-                DetectedPlayerOverlay.DetectedPlayerFocus.Width = LastDetectionBox.Width;
-                DetectedPlayerOverlay.DetectedPlayerFocus.Height = LastDetectionBox.Height;
+                var boxStyle = Dictionary.dropdownState.ContainsKey("ESP Box Style") ? Dictionary.dropdownState["ESP Box Style"].ToString() : "Box";
+                // reset opacity, kinda janky for now
+                DetectedPlayerOverlay.DetectedPlayerFocus.Opacity = 0;
+                DetectedPlayerOverlay.DetectedPlayerCornerBox.Opacity = 0;
+                DetectedPlayerOverlay.DetectedPlayerHighlight.Opacity = 0;
+                switch (boxStyle)
+                {
+                    case "Box":
+                        DetectedPlayerOverlay.DetectedPlayerFocus.Opacity = 1;
+
+                        DetectedPlayerOverlay.DetectedPlayerFocus.Margin = new Thickness(
+                            centerX - (LastDetectionBox.Width / 2.0), centerY, 0, 0);
+                        DetectedPlayerOverlay.DetectedPlayerFocus.Width = LastDetectionBox.Width;
+                        DetectedPlayerOverlay.DetectedPlayerFocus.Height = LastDetectionBox.Height;
+                        break;
+
+                    case "Corner Box":
+                        DetectedPlayerOverlay.DetectedPlayerCornerBox.Opacity = 1;
+
+                        DetectedPlayerOverlay.UpdateCornerBox(
+                            centerX - (LastDetectionBox.Width / 2.0),
+                            centerY,
+                            LastDetectionBox.Width,
+                            LastDetectionBox.Height,
+                            20);// this 20 can be adjusted but I don't wanna clutter the UI, so it is hardcoded rn
+                        break;
+
+                    case "Highlight":
+                        DetectedPlayerOverlay.DetectedPlayerHighlight.Opacity = 1;
+
+                        DetectedPlayerOverlay.DetectedPlayerHighlight.Margin = new Thickness(
+                            centerX - (LastDetectionBox.Width / 2.0), centerY, 0, 0);
+                        DetectedPlayerOverlay.DetectedPlayerHighlight.Width = LastDetectionBox.Width;
+                        DetectedPlayerOverlay.DetectedPlayerHighlight.Height = LastDetectionBox.Height;
+                        break;
+
+                }
             });
         }
 

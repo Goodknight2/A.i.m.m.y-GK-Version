@@ -73,6 +73,7 @@ namespace Class
         public AKeyChanger? C_DynamicFOV { get; set; }
         //--
         public ADropdown D_FOVSTYLE { get; set; }
+        public ADropdown D_ESPBoxStyle { get; set; }
         //--
         public AColorChanger? CC_FOVColor { get; set; }
         public AColorChanger? CC_FOVActionColor { get; set; }
