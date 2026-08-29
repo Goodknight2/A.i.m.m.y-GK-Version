@@ -24,8 +24,10 @@ namespace Vector2.Class
             { "Suggested Model", ""},
             { "FOV Size", 640 },
             { "Dynamic FOV Size", 200 },
-            { "Mouse Sensitivity (+/-)", 0.80 },
-            { "Mouse Jitter", 4 },
+            { "FOV Action Size", 320 },
+            { "Mouse Sensitivity X", 0.80 },
+            { "Mouse Sensitivity Y", 0.80 },
+            { "Movement Clamp", 120 },
             { "Sticky Aim Threshold", 50 },
             { "Approach Speed", 0.6 },
             { "Approach Threshold", 50 },
@@ -62,6 +64,7 @@ namespace Vector2.Class
             { "Auto Trigger", false },
             { "Rapid Fire", false },
             { "FOV", false },
+            { "FOV Action", false },
             { "Dynamic FOV", false },
             { "Third Person Support", false },
             { "Masking", false },
@@ -119,6 +122,7 @@ namespace Vector2.Class
         public static Dictionary<string, dynamic> colorState = new()
         {
             { "FOV Color", "#FF8080FF"},
+            { "FOV Action Color", "#FF00FF00"},
             { "Detected Player Color", "#FF00FFFF"},
             { "Theme Color", "#FF722ED1" }
         };

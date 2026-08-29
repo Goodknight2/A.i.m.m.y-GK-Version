@@ -1,15 +1,17 @@
 ﻿using Vector2.Class;
 using Vector2.Theme;
 using Class;
-using System.Runtime.InteropServices;
-using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows;
+using System.Runtime.InteropServices;
 using Color = System.Windows.Media.Color;
 
 namespace Visuality
 {
-    public partial class FOV : Window
+    public partial class FOV : Window, IComponentConnector
     {
         // Windows API for forcing window position
         [DllImport("user32.dll", SetLastError = true)]
@@ -19,6 +21,7 @@ namespace Visuality
         private const uint SWP_NOACTIVATE = 0x0010;
 
         private bool _isInitialized = false;
+
 
         public FOV()
         {
@@ -32,7 +35,10 @@ namespace Visuality
 
             // Subscribe to property changes
             PropertyChanger.ReceiveColor = UpdateFOVColor;
+            PropertyChanger.ReceiveActionColor = UpdateActionFOVColor;
             PropertyChanger.ReceiveFOVSize = UpdateFOVSize;
+            SetActionFovVisibility(Dictionary.toggleState["FOV Action"]);
+            //SetActionFovVisibility(true);
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -115,12 +121,28 @@ namespace Visuality
             Circle.Stroke = brush;
             RectangleShape.Stroke = brush;
         }
+        private void UpdateActionFOVColor(Color newColor)
+        {
+            ActionCircle.Stroke = new SolidColorBrush(newColor);
+        }
 
-
+        public void SetActionFovVisibility(bool isVisible)
+        {
+            ActionCircle.Visibility = ((!isVisible) ? Visibility.Collapsed : Visibility.Visible);
+        }
         public void UpdateFOVSize(double newdouble)
         {
-            Circle.Width = Circle.Height = newdouble;
-            RectangleShape.Width = RectangleShape.Height = newdouble;
+            Ellipse circle = Circle;
+            double width = (Circle.Height = newdouble);
+            circle.Width = width;
+            Rectangle rectangleShape = RectangleShape;
+            width = (RectangleShape.Height = newdouble);
+            rectangleShape.Width = width;
+            dynamic val = Convert.ToDouble(Dictionary.sliderSettings["FOV Action Size"]);
+            dynamic val2 = Math.Clamp(val, 10, newdouble);
+            Ellipse actionCircle = ActionCircle;
+            width = (ActionCircle.Height = val2);
+            actionCircle.Width = width;
         }
 
 
@@ -130,4 +152,5 @@ namespace Visuality
             base.OnClosed(e);
         }
     }
+
 }

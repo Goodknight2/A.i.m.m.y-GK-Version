@@ -20,6 +20,7 @@ namespace Vector2.Controls
         //--
         UISections.ColorPicker colorPickerInstance = null;
         UISections.ColorPicker fovColorPickerInstance = null;
+        UISections.ColorPicker fovActionColorPickerInstance = null;
         //--
         private MainWindow? _mainWindow;
         private bool _isInitialized;
@@ -319,9 +320,9 @@ namespace Vector2.Controls
         private void AddConfigSliders(SectionBuilder builder, UI uiManager)
         {
             builder
-                .AddSlider("Mouse Sensitivity (+/-)", "Sensitivity", 0.01, 0.01, 0.01, 0.99, s =>
+                .AddSlider("Mouse Sensitivity X", "Sensitivity", 0.01, 0.01, 0.01, 0.99, s =>
                 {
-                    uiManager.S_MouseSensitivity = s;
+                    uiManager.S_MouseSensitivityX = s;
                     s.Slider.PreviewMouseLeftButtonUp += (sender, e) =>
                     {
                         var value = s.Slider.Value;
@@ -332,9 +333,23 @@ namespace Vector2.Controls
                             LogManager.Log(LogManager.LogLevel.Warning,
                                 "The Mouse Sensitivity you have set can cause Vector to be unstable to aim, please increase if you suffer from this problem", true);
                     };
-                }, tooltip: "How fast the aim moves. Lower = faster and snappier, higher = slower and smoother.")
-                .AddSlider("Mouse Jitter", "Jitter", 1, 1, 0, 15, s => uiManager.S_MouseJitter = s,
-                    tooltip: "Adds random small movements to make aim look more human-like.")
+                }, tooltip: "How fast the aim moves horizontally. Lower = faster and snappier, higher = slower and smoother.")
+                .AddSlider("Mouse Sensitivity Y", "Sensitivity", 0.01, 0.01, 0.01, 0.99, s =>
+                {
+                    uiManager.S_MouseSensitivityY = s;
+                    s.Slider.PreviewMouseLeftButtonUp += (sender, e) =>
+                    {
+                        var value = s.Slider.Value;
+                        if (value >= 0.98)
+                            LogManager.Log(LogManager.LogLevel.Warning,
+                                "The Mouse Sensitivity you have set can cause Vector to be unable to aim, please decrease if you suffer from this problem", true);
+                        else if (value <= 0.1)
+                            LogManager.Log(LogManager.LogLevel.Warning,
+                                "The Mouse Sensitivity you have set can cause Vector to be unstable to aim, please increase if you suffer from this problem", true);
+                    };
+                }, tooltip: "How fast the aim moves vertically. Lower = faster and snappier, higher = slower and smoother.")
+                .AddSlider("Movement Clamp", "Clamp", 1, 1, 10, 500, s => uiManager.S_MovementClamp = s,
+                    tooltip: "The cap of how much the mouse can move at once, Less = more steps")
                 .AddToggle("Snap Lock", t => uiManager.T_SnapLock = t,
                     tooltip: "Gradually slow down speed as you get close to a target for an instant lock.")
                 .AddSlider("Approach Speed", "Percent", 0.05, 0.1, 0.05, 1, s =>
@@ -350,7 +365,7 @@ namespace Vector2.Controls
                     // Set initial visibility based on toggle state
                     s.Visibility = Dictionary.toggleState["Snap Lock"]
                         ? Visibility.Visible : Visibility.Collapsed;
-                }, tooltip: "Distance from target where snap lock activates. Higher = activates sooner.")                    
+                }, tooltip: "Distance from target where snap lock activates. Higher = activates sooner.")
                 .AddToggle("Y Axis Percentage Adjustment", t => uiManager.T_YAxisPercentageAdjustment = t,
                     tooltip: "Enable the Y Offset (%) slider to adjust aim vertically by percentage.")
                 .AddToggle("X Axis Percentage Adjustment", t => uiManager.T_XAxisPercentageAdjustment = t,
@@ -500,7 +515,7 @@ namespace Vector2.Controls
                 .AddToggle("Rapid Fire", t => uiManager.T_RapidFire = t,
                     tooltip: "Automatically spam clicks repeatedly when holding the aim keybind. Good for semi-automatic weapons.")
                 .AddKeyChanger("Rapid Fire Keybind", k => uiManager.C_RapidFireKeybind = k,
-                    tooltip: "The key to hold to activate rapid fire. Usually left click.")    
+                    tooltip: "The key to hold to activate rapid fire. Usually left click.")
                 .AddSlider("Rapid Fire Delay", "Milliseconds", 5, 5, 50, 500, s => uiManager.S_RapidFireDelay = s,
                     tooltip: "Delay between shots when Rapid Fire is active. Higher = slower fire rate, Lower = faster fire rate.")
                 .AddSeparator();
@@ -515,10 +530,16 @@ namespace Vector2.Controls
                 .AddTitle("FOV Config", true, t =>
                 {
                     uiManager.AT_FOV = t;
-                    t.Minimize.Click += (s, e) => TogglePanel("FOV Config", FOVConfigPanel);
+                    t.Minimize.Click += (s, e) =>
+                    {
+                        TogglePanel("FOV Config", FOVConfigPanel);
+                        _mainWindow.UpdateFOVConfigSliderVisibility();
+                    };
                 })
                 .AddToggle("FOV", t => uiManager.T_FOV = t,
                     tooltip: "Show a circle on screen indicating the detection area.")
+                .AddToggle("FOV Action", t => uiManager.T_FOVAction = t,
+                    tooltip: "Enable an inner action circle. Aim assist only engages when detections are inside this inner circle.")
                 .AddToggle("Dynamic FOV", t => uiManager.T_DynamicFOV = t,
                     tooltip: "Change FOV size when holding a key. Useful for scoping in.")
                 .AddToggle("Third Person Support", t => uiManager.T_ThirdPersonSupport = t,
@@ -547,6 +568,7 @@ namespace Vector2.Controls
                 }, tooltip: "Shape of the FOV overlay. Circle is most common.")
                 .AddColorChanger("FOV Color", c =>
                 {
+                    uiManager.CC_FOVColor = c;
                     c.Reader.Click += (s, e) =>
                     {
                         if (fovColorPickerInstance != null && fovColorPickerInstance.IsVisible)
@@ -577,6 +599,37 @@ namespace Vector2.Controls
                         fovColorPickerInstance.Show();
                     };
                 })
+                .AddColorChanger("FOV Action Color", delegate (AColorChanger c)
+                {
+                    uiManager.CC_FOVActionColor = c;
+                    c.Reader.Click += (s, e) =>
+                    {
+                        if (fovActionColorPickerInstance != null && fovActionColorPickerInstance.IsVisible)
+                        {
+                            fovActionColorPickerInstance.Activate();
+                        }
+                        else
+                        {
+                            Color initialColor = Colors.White;
+                            if (c.ColorChangingBorder.Background is SolidColorBrush solidColorBrush)
+                            {
+                                initialColor = solidColorBrush.Color;
+                            }
+                            fovActionColorPickerInstance = new UISections.ColorPicker(initialColor, "FOV Action Color");
+                            fovActionColorPickerInstance.ColorChanged += delegate (Color color)
+                            {
+                                c.ColorChangingBorder.Background = new SolidColorBrush(color);
+                                Dictionary.colorState["FOV Action Color"] = $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
+                                PropertyChanger.PostActionColor(color);
+                            };
+                            fovActionColorPickerInstance.Closed += delegate
+                            {
+                                fovActionColorPickerInstance = null;
+                            };
+                            fovActionColorPickerInstance.Show();
+                        }
+                    };
+                })
                 .AddSlider("FOV Size", "Size", 1, 1, 10, 640, s =>
                 {
                     uiManager.S_FOVSize = s;
@@ -584,11 +637,30 @@ namespace Vector2.Controls
                     {
                         _mainWindow.ActualFOV = s.Slider.Value;
                         PropertyChanger.PostNewFOVSize(_mainWindow.ActualFOV);
+                        _mainWindow?.UpdateFOVConfigSliderVisibility();
+                    };
+                }, tooltip: "Size of the detection area. Smaller = more precise, larger = wider coverage.")
+                .AddSlider("FOV Action Size", "Size", 1, 1, 10, 640, s =>
+                {
+                    uiManager.S_FOVActionSize = s;
+                    s.Visibility = Dictionary.toggleState["FOV Action"] ? Visibility.Visible : Visibility.Collapsed;
+                    s.Slider.ValueChanged += (sender, e) =>
+                    {
+                        dynamic val = Convert.ToDouble(Dictionary.sliderSettings["FOV Size"]);
+                        if (s.Slider.Value > val)
+                        {
+                            s.Slider.Value = val;
+                        }
+                        else
+                        {
+                            MainWindow.FOVWindow.UpdateFOVSize(val);
+                        }
                     };
                 }, tooltip: "Size of the detection area. Smaller = more precise, larger = wider coverage.")
                 .AddSlider("Dynamic FOV Size", "Size", 1, 1, 10, 640, s =>
                 {
                     uiManager.S_DynamicFOVSize = s;
+                    s.Visibility = Dictionary.toggleState["Dynamic FOV"] ? Visibility.Visible : Visibility.Collapsed;
                     s.Slider.ValueChanged += (sender, e) =>
                     {
                         if (Dictionary.toggleState["Dynamic FOV"])

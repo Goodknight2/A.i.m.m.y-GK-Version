@@ -22,7 +22,7 @@ namespace InputLogic
 
         private static DateTime LastClickTime = DateTime.MinValue;
         private static bool isSpraying = false;
-        private static ArduinoInput? _arduinoMouse = null;        
+        private static ArduinoInput? _arduinoMouse = null;
         private static ArduinoInput GetArduinoMouse()
         {
             if (_arduinoMouse == null)
@@ -78,7 +78,7 @@ namespace InputLogic
                     break;
                 case "Makcu":
                     mouseDownAction = () => MakcuMain.MakcuInstance.Press(MakcuMouseButton.Left);
-                    mouseUpAction = () => MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);    
+                    mouseUpAction = () => MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);
                     break;
                 default:
                     mouseDownAction = () => mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
@@ -95,37 +95,33 @@ namespace InputLogic
             {
                 return;
             }
-            
+
             double fireDelay = Dictionary.sliderSettings["Rapid Fire Delay"];
             string fireKeybind = Dictionary.bindingSettings["Rapid Fire Keybind"];
             bool isLeftClickBind = fireKeybind == "Left";
 
             var (mouseDown, mouseUp) = GetMouseActions();
 
-            // For left click, we need to track expected release times
+            // For left click, we need to do some stuff
             if (isLeftClickBind)
             {
-                // Make sure the binding is actually held before starting
+                // Make sure the kb is actually held before starting
                 if (!InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
                     return;
-                    
+
                 try
                 {
                     while (InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
                     {
-                        // Simulate mouse down
                         mouseDown.Invoke();
-                        
-                        // Wait for the fire delay
+
                         await Task.Delay((int)fireDelay);
-                        
-                        // Mark when we expect this mouse up to happen (now)
-                        // We use UtcNow for consistency
+
+                        // save the timing of when it expects to release, so it can tell the difference between a triggered release and a mouse up event
                         InputBindingManager.MarkExpectedRelease(MouseButtons.Left, DateTime.UtcNow);
-                        
-                        // Simulate mouse up
+
                         mouseUp.Invoke();
-                        
+
                         // Wait before next cycle
                         await Task.Delay((int)fireDelay);
                     }
@@ -137,7 +133,6 @@ namespace InputLogic
             }
             else
             {
-                // For keyboard keys, use the normal approach
                 try
                 {
                     while (InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
@@ -156,7 +151,7 @@ namespace InputLogic
         }
         public static async Task DoTriggerClick(RectangleF? detectionBox = null)
         {
-            // there was a toggle for this, but i realized if it was off, it would never stop spraying. - T
+            // Early release if no keybinds held
             if (!(InputBindingManager.IsHoldingBinding("Aim Keybind") || InputBindingManager.IsHoldingBinding("Second Aim Keybind")))
             {
                 ResetSprayState();
@@ -237,19 +232,20 @@ namespace InputLogic
 
         public static void MoveCrosshair(int detectedX, int detectedY)
         {
-            double mouseSensitivity = Dictionary.sliderSettings["Mouse Sensitivity (+/-)"];
-            int mouseJitter = (int)Dictionary.sliderSettings["Mouse Jitter"];
+            double sensX = Dictionary.sliderSettings["Mouse Sensitivity X"];
+            double sensY = Dictionary.sliderSettings["Mouse Sensitivity Y"];
+            int moveClamp = (int)Dictionary.sliderSettings["Movement Clamp"];
             string movementPath = Dictionary.dropdownState["Movement Path"];
             string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
             bool autoTrigger = Dictionary.toggleState["Auto Trigger"];
-            
+
             bool emaEnabled = IsEMASmoothingEnabled;
             double cachedSmoothingFactor = smoothingFactor;
             double cachedPreviousX = previousX;
             double cachedPreviousY = previousY;
 
             int halfScreenWidth = (int)ScreenWidth / 2;
-            int halfScreenHeight = (int)ScreenHeight / 2;  
+            int halfScreenHeight = (int)ScreenHeight / 2;
 
             var currentMousePos = WinAPICaller.GetCursorPosition();
 
@@ -258,34 +254,41 @@ namespace InputLogic
 
             double aspectRatioCorrection = ScreenWidth / ScreenHeight;
 
-            int jitterX = MouseRandom.Next(-mouseJitter, mouseJitter);
-            int jitterY = MouseRandom.Next(-mouseJitter, mouseJitter);
 
             Point start = new(0, 0);
             Point end = new(targetX, targetY);
-            Point newPosition;
+            Point newPosition = new Point(0, 0);
 
             switch (Dictionary.dropdownState["Movement Path"])
             {
                 case "Cubic Bezier":
                     Point control1 = new(start.X + (end.X - start.X) / 3, start.Y + (end.Y - start.Y) / 3);
                     Point control2 = new(start.X + 2 * (end.X - start.X) / 3, start.Y + 2 * (end.Y - start.Y) / 3);
-                    newPosition = MovementPaths.CubicBezier(start, end, control1, control2, 1 - mouseSensitivity);
+                    Point Xpos = MovementPaths.CubicBezier(start, end, control1, control2, 1 - sensX);
+                    Point Ypos = MovementPaths.CubicBezier(start, end, control1, control2, 1 - sensY);
+                    newPosition.X = Xpos.X;
+                    newPosition.Y = Ypos.Y;
+
                     break;
                 case "Exponential":
-                    newPosition = MovementPaths.Exponential(start, end, 1 - (mouseSensitivity - 0.2), 2.7);
+                    newPosition.X = MovementPaths.Exponential(start, end, 1 - (sensX - 0.2), 2.7).X;
+                    newPosition.Y = MovementPaths.Exponential(start, end, 1 - (sensY - 0.2), 2.7).Y;
                     break;
                 case "Adaptive":
-                    newPosition = MovementPaths.Adaptive(start, end, 1 - mouseSensitivity);
+                    newPosition.X = MovementPaths.Adaptive(start, end, 1 - sensX).X;
+                    newPosition.Y = MovementPaths.Adaptive(start, end, 1 - sensY).Y;
                     break;
                 case "Smoothstep":
-                    newPosition = MovementPaths.Smoothstep(start, end, 1 - mouseSensitivity);
-                    break;     
+                    newPosition.X = MovementPaths.Smoothstep(start, end, 1 - sensX).X;
+                    newPosition.Y = MovementPaths.Smoothstep(start, end, 1 - sensY).Y;
+                    break;
                 case "Perlin Noise":
-                    newPosition = MovementPaths.PerlinNoise(start, end, 1 - mouseSensitivity, 20, 0.5);
+                    newPosition.X = MovementPaths.PerlinNoise(start, end, 1 - sensX, 20, 0.5).X;
+                    newPosition.Y = MovementPaths.PerlinNoise(start, end, 1 - sensY, 20, 0.5).Y;
                     break;
                 default:
-                    newPosition = MovementPaths.Lerp(start, end, 1 - mouseSensitivity);
+                    newPosition.X = MovementPaths.Lerp(start, end, 1 - sensX).X;
+                    newPosition.Y = MovementPaths.Lerp(start, end, 1 - sensY).Y;
                     break;
             }
 
@@ -293,25 +296,22 @@ namespace InputLogic
             {
                 double smoothedX = EmaSmoothing(cachedPreviousX, newPosition.X, cachedSmoothingFactor);
                 double smoothedY = EmaSmoothing(cachedPreviousY, newPosition.Y, cachedSmoothingFactor);
-                
+
                 if (!double.IsNaN(smoothedX) && !double.IsInfinity(smoothedX) &&
                     !double.IsNaN(smoothedY) && !double.IsInfinity(smoothedY))
                 {
                     newPosition.X = (int)smoothedX;
                     newPosition.Y = (int)smoothedY;
-                    
+
                     previousX = smoothedX;
                     previousY = smoothedY;
                 }
             }
             // Clamp the movement, but use doubles
-            double moveXDouble = Math.Clamp(newPosition.X, -150, 150);
-            double moveYDouble = Math.Clamp(newPosition.Y, -150, 150);
-            
-            moveYDouble = moveYDouble * aspectRatioCorrection;
+            double moveXDouble = Math.Clamp(newPosition.X, -moveClamp, moveClamp);
+            double moveYDouble = Math.Clamp(newPosition.Y, -moveClamp, moveClamp);
 
-            moveXDouble += jitterX;
-            moveYDouble += jitterY;
+            moveYDouble = moveYDouble * aspectRatioCorrection;
 
             // then round to int
             int moveX = (int)Math.Round(moveXDouble);
@@ -339,7 +339,7 @@ namespace InputLogic
                     break;
                 case "Makcu":
                     MakcuMain.MakcuInstance.Move(moveX, moveY);
-                    break; 
+                    break;
 
                 default:
                     mouse_event(MOUSEEVENTF_MOVE, (uint)moveX, (uint)moveY, 0, 0);
