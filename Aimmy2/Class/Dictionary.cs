@@ -111,6 +111,7 @@ namespace Vector2.Class
             { "Detection Area Type", "Closest to Center Screen" },
             { "Aiming Boundaries Alignment", "Center" },
             { "Mouse Movement Method", "Mouse Event" },
+            { "ESP Box Style", "Box" },
             { "Screen Capture Method", "DirectX" },
             { "Execution Provider", "CUDA" },
             { "Tracer Position", "Bottom" },

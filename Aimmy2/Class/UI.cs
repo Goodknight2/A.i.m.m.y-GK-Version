@@ -73,6 +73,7 @@ namespace Class
         public AKeyChanger? C_DynamicFOV { get; set; }
         //--
         public ADropdown D_FOVSTYLE { get; set; }
+        public ADropdown D_ESPBoxStyle { get; set; }
         //--
         public AColorChanger? CC_FOVColor { get; set; }
         public AColorChanger? CC_FOVActionColor { get; set; }
@@ -116,7 +117,6 @@ namespace Class
         public AToggle? T_MouseBackgroundEffect { get; set; }
         public AToggle? T_UITopMost { get; set; }
         public APButton? B_SaveConfig { get; set; }
-        public APButton? B_SaveWinSize { get; set; }
         public APButton? B_Debug { get; set; }
         //--
         public AToggle? T_StreamGuard { get; set; }

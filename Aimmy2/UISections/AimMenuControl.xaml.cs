@@ -715,66 +715,81 @@ namespace Vector2.Controls
                 };
             }, tooltip: "Where tracer lines start from on the screen.");
 
-            builder
-                .AddColorChanger("Detected Player Color", c =>
+            builder.AddDropdown("ESP Box Style", d =>
+            {
+                d.DropdownBox.SelectedIndex = 0;
+                uiManager.D_ESPBoxStyle = d;
+                _mainWindow.AddDropdownItem(d, "Box");
+                _mainWindow.AddDropdownItem(d, "Corner Box");
+                _mainWindow.AddDropdownItem(d, "Highlight");
+
+            }, tooltip: "Choose how the detected player is highlighted.");
+
+            builder.AddColorChanger("Detected Player Color", c =>
+            {
+                c.Reader.Click += (s, e) =>
                 {
-                    c.Reader.Click += (s, e) =>
+                    if (colorPickerInstance != null && colorPickerInstance.IsVisible)
                     {
-                        if (colorPickerInstance != null && colorPickerInstance.IsVisible)
-                        {
-                            colorPickerInstance.Activate();
-                            return;
-                        }
+                        colorPickerInstance.Activate();
+                        return;
+                    }
 
-                        Color initialColor = Colors.White;
-                        if (c.ColorChangingBorder.Background is SolidColorBrush scb)
-                            initialColor = scb.Color;
-                        colorPickerInstance = new UISections.ColorPicker(initialColor, "ESP Color");
+                    Color initialColor = Colors.White;
+                    if (c.ColorChangingBorder.Background is SolidColorBrush scb)
+                        initialColor = scb.Color;
+                    colorPickerInstance = new UISections.ColorPicker(initialColor, "ESP Color");
 
-                        colorPickerInstance.ColorChanged += (color) =>
-                        {
-                            // Update the color square
-                            c.ColorChangingBorder.Background = new SolidColorBrush(color);
-                            // Save to dictionary for persistence
-                            Dictionary.colorState["Detected Player Color"] = $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
-                            PropertyChanger.PostDPColor(color);
-                        };
-
-                        colorPickerInstance.Closed += (sender, args) =>
-                        {
-                            colorPickerInstance = null;
-                        };
-
-                        colorPickerInstance.Show();
+                    colorPickerInstance.ColorChanged += (color) =>
+                    {
+                        // Update the color square
+                        c.ColorChangingBorder.Background = new SolidColorBrush(color);
+                        // Save to dictionary for persistence
+                        Dictionary.colorState["Detected Player Color"] = $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
+                        PropertyChanger.PostDPColor(color);
                     };
-                })
-                .AddSlider("AI Confidence Font Size", "Size", 1, 1, 1, 30, s =>
-                {
-                    uiManager.S_DPFontSize = s;
-                    s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPFontSize((int)s.Slider.Value);
-                }, tooltip: "Text size for the confidence percentage display.")
-                .AddSlider("Corner Radius", "Radius", 1, 1, 0, 100, s =>
-                {
-                    uiManager.S_DPCornerRadius = s;
-                    s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPWCornerRadius((int)s.Slider.Value);
-                }, tooltip: "How rounded the detection box corners are. 0 = sharp corners.")
-                .AddSlider("Border Thickness", "Thickness", 0.1, 1, 0.1, 10, s =>
-                {
-                    uiManager.S_DPBorderThickness = s;
-                    s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPWBorderThickness(s.Slider.Value);
-                }, tooltip: "How thick the detection box outline is.")
-                .AddSlider("Opacity", "Opacity", 0.1, 0.1, 0, 1, s =>
-                {
-                    uiManager.S_DPOpacity = s;
-                    s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPWOpacity(s.Slider.Value);
-                }, tooltip: "How see-through the detection box is. 0 = invisible, 1 = solid.")
-                .AddSeparator();
+
+                    colorPickerInstance.Closed += (sender, args) =>
+                    {
+                        colorPickerInstance = null;
+                    };
+
+                    colorPickerInstance.Show();
+                };
+            })
+            .AddSlider("AI Confidence Font Size", "Size", 1, 1, 1, 30, s =>
+            {
+                uiManager.S_DPFontSize = s;
+                s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPFontSize((int)s.Slider.Value);
+            }, tooltip: "Text size for the confidence percentage display.")
+            .AddSlider("Corner Radius", "Radius", 1, 1, 0, 100, s =>
+            {
+                uiManager.S_DPCornerRadius = s;
+                s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPWCornerRadius((int)s.Slider.Value);
+            }, tooltip: "How rounded the detection box corners are. 0 = sharp corners.")
+            .AddSlider("Border Thickness", "Thickness", 0.1, 1, 0.1, 10, s =>
+            {
+                uiManager.S_DPBorderThickness = s;
+                s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPWBorderThickness(s.Slider.Value);
+            }, tooltip: "How thick the detection box outline is.")
+            .AddSlider("Opacity", "Opacity", 0.1, 0.1, 0, 1, s =>
+            {
+                uiManager.S_DPOpacity = s;
+                s.Slider.ValueChanged += (sender, e) => PropertyChanger.PostDPWOpacity(s.Slider.Value);
+            }, tooltip: "How see-through the detection box is. 0 = invisible, 1 = solid.")
+            .AddSeparator();
         }
 
         #endregion
 
         #region Helper Methods
 
+        private static string GetDropdownLabel(System.Windows.Controls.ComboBox? box)
+        {
+            if (box?.SelectedItem is System.Windows.Controls.ComboBoxItem item)
+                return item.Content?.ToString() ?? "";
+            return box?.SelectedItem?.ToString() ?? "";
+        }
         private void OnImageSizeChanged(int imageSize)
         {
             Application.Current.Dispatcher.Invoke(() =>

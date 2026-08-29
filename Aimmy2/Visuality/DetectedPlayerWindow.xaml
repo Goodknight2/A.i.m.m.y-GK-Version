@@ -27,6 +27,7 @@
                VerticalContentAlignment="Center"
                Foreground="#DDFF0000"
                FontSize="20" />
+        <!-- NOrmal box-->
         <Border x:Name="DetectedPlayerFocus"
                 Width="50"
                 Height="50"
@@ -35,6 +36,32 @@
                 VerticalAlignment="Top"
                 Visibility="Visible"
                 Opacity="0" />
+        <!-- Highlight -->
+        <Border x:Name="DetectedPlayerHighlight"
+                Width="50"
+                Height="50"
+                BorderThickness="2"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Visibility="Visible"
+                Opacity="0">
+            <Border.Effect>
+                <DropShadowEffect Color="{Binding RelativeSource={RelativeSource Self}, Path=BorderBrush.Color}"
+                                  BlurRadius="15"
+                                  ShadowDepth="0"
+                                  Opacity="0.8"/>
+            </Border.Effect>
+        </Border>
+
+        <!-- Corner box -->
+        <Path x:Name="DetectedPlayerCornerBox"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top"
+              StrokeThickness="2"
+              Stroke="Red"
+              Visibility="Visible"
+              Opacity="0" />
+        
         <Line x:Name="DetectedTracers"
               X1="0"
               Y1="0"
