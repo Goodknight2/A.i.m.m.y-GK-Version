@@ -18,7 +18,6 @@ namespace InputLogic
     {
         private static readonly double ScreenWidth = WinAPICaller.ScreenWidth;
         private static readonly double ScreenHeight = WinAPICaller.ScreenHeight;
-        private static bool _isRapidFireActive = false;
 
         private static DateTime LastClickTime = DateTime.MinValue;
         private static bool isSpraying = false;
@@ -88,7 +87,39 @@ namespace InputLogic
 
             return (mouseDownAction, mouseUpAction);
         }
+        public static void DoAntiRecoil(int xRecoil, int yRecoil)
+        {
+            string method = Dictionary.dropdownState["Mouse Movement Method"];
 
+            switch (method)
+            {
+                case "Arduino":
+                    GetArduinoMouse().SendMouseCommand(xRecoil, yRecoil, 0);
+                    break;
+                case "SendInput":
+                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, xRecoil, yRecoil);
+                    break;
+
+                case "LG HUB":
+                    LGMouse.Move(0, xRecoil, yRecoil, 0);
+                    break;
+
+                case "Razer Synapse (Require Razer Peripheral)":
+                    RZMouse.mouse_move(xRecoil, yRecoil, true);
+                    break;
+
+                case "ddxoft Virtual Input Driver":
+                    DdxoftMain.ddxoftInstance.movR!(xRecoil, yRecoil);
+                    break;
+                case "Makcu":
+                    MakcuMain.MakcuInstance.Move(xRecoil, yRecoil);
+                    break;
+
+                default:
+                    mouse_event(MOUSEEVENTF_MOVE, (uint)xRecoil, (uint)yRecoil, 0, 0);
+                    break;
+            }
+        }
         public static async Task DoRapidFire()
         {
             if (!Dictionary.toggleState["Rapid Fire"])

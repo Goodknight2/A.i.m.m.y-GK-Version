@@ -32,6 +32,7 @@ namespace Vector2.Controls
             { "Aim Config", false },
             { "Predictions", false },
             { "Auto Trigger", false },
+            { "Anti Recoil", false },
             { "Rapid Fire", false },
             { "FOV Config", false },
             { "ESP Config", false }
@@ -40,6 +41,7 @@ namespace Vector2.Controls
         // Public properties for MainWindow access
         public StackPanel AimAssistPanel => AimAssist;
         public StackPanel TriggerBotPanel => TriggerBot;
+        public StackPanel AntiRecoilPanel => AntiRecoil;
         public StackPanel RapidFirePanel => RapidFire;
         public StackPanel ESPConfigPanel => ESPConfig;
         public StackPanel AimConfigPanel => AimConfig;
@@ -69,6 +71,7 @@ namespace Vector2.Controls
             LoadAimConfig();
             LoadPredictions();
             LoadTriggerBot();
+            LoadAntiRecoil();
             LoadRapidFire();
             LoadFOVConfig();
             LoadESPConfig();
@@ -104,6 +107,7 @@ namespace Vector2.Controls
             ApplyPanelState("Aim Config", AimConfigPanel);
             ApplyPanelState("Predictions", PredictionsPanel);
             ApplyPanelState("Auto Trigger", TriggerBotPanel);
+            ApplyPanelState("Anti Recoil", AntiRecoilPanel);
             ApplyPanelState("Rapid Fire", RapidFirePanel);
             ApplyPanelState("FOV Config", FOVConfigPanel);
             ApplyPanelState("ESP Config", ESPConfigPanel);
@@ -499,6 +503,28 @@ namespace Vector2.Controls
                 //.AddToggle("Only When Held", t => uiManager.T_OnlyWhenHeld = t)
                 .AddSlider("Auto Trigger Delay", "Seconds", 0.01, 0.1, 0.01, 1, s => uiManager.S_AutoTriggerDelay = s,
                     tooltip: "Wait time before firing after detecting a target. Helps avoid accidental shots.")
+                .AddSeparator();
+        }
+        private void LoadAntiRecoil()
+        {
+            var uiManager = _mainWindow!.uiManager;
+            var builder = new SectionBuilder(this, AntiRecoil);
+
+            builder
+                .AddTitle("Anti Recoil", true, t =>
+                {
+                    uiManager.AT_AntiRecoil = t;
+                    t.Minimize.Click += (s, e) => TogglePanel("Anti Recoil", AntiRecoilPanel);
+                })
+                .AddToggle("Anti Recoil", t => uiManager.T_AntiRecoil = t)
+                .AddKeyChanger("Anti Recoil Keybind", k => uiManager.C_AntiRecoilKeybind = k, "Left")
+                .AddKeyChanger("Toggle Anti Recoil Keybind", k => uiManager.C_ToggleAntiRecoilKeybind = k, "Oem6")
+                .AddSlider("Move Delay", "Milliseconds", 1, 1, 1, 100, s => uiManager.S_MoveDelay = s, 
+                    tooltip: "How long you can click before the anti recoil starts")
+                .AddSlider("Y Recoil (Up/Down)", "Move", 1, 1, -50, 50, s => uiManager.S_YAntiRecoil = s,
+                    tooltip: "How much the mouse moves up or down. 1 = down, -1 = up")
+                .AddSlider("X Recoil (Left/Right)", "Move", 1, 1, -50, 50, s => uiManager.S_XAntiRecoil = s, 
+                    tooltip: "How much the mouse moves up or down. 1 = left, -1 = right")
                 .AddSeparator();
         }
         private void LoadRapidFire()

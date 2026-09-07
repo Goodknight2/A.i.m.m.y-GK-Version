@@ -63,7 +63,14 @@ namespace Class
         public AToggle? T_RapidFire { get; set; }
         public ASlider? S_RapidFireDelay { get; set; }
         public AKeyChanger? C_RapidFireKeybind { get; set; }
-
+        // Anti Recoil
+        public ATitle? AT_AntiRecoil { get; set; }
+        public AToggle? T_AntiRecoil { get; set; }
+        public AKeyChanger? C_AntiRecoilKeybind { get; set; }
+        public AKeyChanger? C_ToggleAntiRecoilKeybind { get; set; }
+        public ASlider? S_MoveDelay { get; set; }
+        public ASlider? S_YAntiRecoil { get; set; }
+        public ASlider? S_XAntiRecoil { get; set; }
         // FOV
         public ATitle? AT_FOV { get; set; }
         public AToggle? T_FOV { get; set; }
