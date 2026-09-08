@@ -16,7 +16,9 @@ namespace Vector2.Class
             { "Dynamic FOV Keybind", "Left"},
             { "Rapid Fire Keybind", "Left"},
             { "Emergency Stop Keybind", "Delete"},
-            { "Model Switch Keybind", "OemPipe"}
+            { "Model Switch Keybind", "OemPipe"},
+            { "Anti Recoil Keybind", "Left"},
+            { "Toggle Anti Recoil Keybind", "Oem6"}
         };
 
         public static Dictionary<string, dynamic> sliderSettings = new()
@@ -40,6 +42,11 @@ namespace Vector2.Class
             { "Kalman Lead Time", 0.10 },
             { "Kalman Smoothness", 0.5 },
             { "WiseTheFox Lead Time", 0.15 },
+            // anti recoil stuff
+            { "Move Delay", 35 },
+            { "Y Recoil (Up/Down)", 10 },
+            { "X Recoil (Left/Right)", 0 },
+
             { "Shalloe Lead Multiplier", 3.0 },
             { "Static Prediction Offset", 1 },
             { "Prediction Blend", 50 },
@@ -71,7 +78,9 @@ namespace Vector2.Class
             { "Show Detected Player", false },
             { "Cursor Check", false },
             { "Spray Mode", false },
-            //{ "Only When Held", false },
+            { "Anti Recoil", false },
+            { "Anti Recoil Keybind", "Left"},
+            { "Toggle Anti Recoil Keybind", "Oem6"},
             { "Show FOV", true },
             { "Show AI Confidence", false },
             { "Show Tracers", false },
@@ -95,6 +104,7 @@ namespace Vector2.Class
             { "Aim Config", false },
             { "Predictions", false },
             { "Auto Trigger", false },
+            { "Anti Recoil", false },
             { "Rapid Fire", false },
             { "FOV Config", false },
             { "ESP Config", false },

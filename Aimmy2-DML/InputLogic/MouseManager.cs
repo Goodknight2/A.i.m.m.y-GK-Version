@@ -18,11 +18,10 @@ namespace InputLogic
     {
         private static readonly double ScreenWidth = WinAPICaller.ScreenWidth;
         private static readonly double ScreenHeight = WinAPICaller.ScreenHeight;
-        private static bool _isRapidFireActive = false;
 
         private static DateTime LastClickTime = DateTime.MinValue;
         private static bool isSpraying = false;
-        private static ArduinoInput? _arduinoMouse = null;
+        private static ArduinoInput? _arduinoMouse = null;        
         private static ArduinoInput GetArduinoMouse()
         {
             if (_arduinoMouse == null)
@@ -78,7 +77,7 @@ namespace InputLogic
                     break;
                 case "Makcu":
                     mouseDownAction = () => MakcuMain.MakcuInstance.Press(MakcuMouseButton.Left);
-                    mouseUpAction = () => MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);
+                    mouseUpAction = () => MakcuMain.MakcuInstance.Release(MakcuMouseButton.Left);    
                     break;
                 default:
                     mouseDownAction = () => mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
@@ -88,14 +87,46 @@ namespace InputLogic
 
             return (mouseDownAction, mouseUpAction);
         }
+        public static void DoAntiRecoil(int xRecoil, int yRecoil)
+        {
+            string method = Dictionary.dropdownState["Mouse Movement Method"];
 
+            switch (method)
+            {
+                case "Arduino":
+                    GetArduinoMouse().SendMouseCommand(xRecoil, yRecoil, 0);
+                    break;
+                case "SendInput":
+                    SendInputMouse.SendMouseCommand(MOUSEEVENTF_MOVE, xRecoil, yRecoil);
+                    break;
+
+                case "LG HUB":
+                    LGMouse.Move(0, xRecoil, yRecoil, 0);
+                    break;
+
+                case "Razer Synapse (Require Razer Peripheral)":
+                    RZMouse.mouse_move(xRecoil, yRecoil, true);
+                    break;
+
+                case "ddxoft Virtual Input Driver":
+                    DdxoftMain.ddxoftInstance.movR!(xRecoil, yRecoil);
+                    break;
+                case "Makcu":
+                    MakcuMain.MakcuInstance.Move(xRecoil, yRecoil);
+                    break;
+
+                default:
+                    mouse_event(MOUSEEVENTF_MOVE, (uint)xRecoil, (uint)yRecoil, 0, 0);
+                    break;
+            }
+        }
         public static async Task DoRapidFire()
         {
             if (!Dictionary.toggleState["Rapid Fire"])
             {
                 return;
             }
-
+            
             double fireDelay = Dictionary.sliderSettings["Rapid Fire Delay"];
             string fireKeybind = Dictionary.bindingSettings["Rapid Fire Keybind"];
             bool isLeftClickBind = fireKeybind == "Left";
@@ -108,20 +139,20 @@ namespace InputLogic
                 // Make sure the kb is actually held before starting
                 if (!InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
                     return;
-
+                    
                 try
                 {
                     while (InputBindingManager.IsHoldingBinding("Rapid Fire Keybind"))
                     {
                         mouseDown.Invoke();
-
+                        
                         await Task.Delay((int)fireDelay);
 
                         // save the timing of when it expects to release, so it can tell the difference between a triggered release and a mouse up event
                         InputBindingManager.MarkExpectedRelease(MouseButtons.Left, DateTime.UtcNow);
-
+                        
                         mouseUp.Invoke();
-
+                        
                         // Wait before next cycle
                         await Task.Delay((int)fireDelay);
                     }
@@ -238,14 +269,14 @@ namespace InputLogic
             string movementPath = Dictionary.dropdownState["Movement Path"];
             string mouseMovementMethod = Dictionary.dropdownState["Mouse Movement Method"];
             bool autoTrigger = Dictionary.toggleState["Auto Trigger"];
-
+            
             bool emaEnabled = IsEMASmoothingEnabled;
             double cachedSmoothingFactor = smoothingFactor;
             double cachedPreviousX = previousX;
             double cachedPreviousY = previousY;
 
             int halfScreenWidth = (int)ScreenWidth / 2;
-            int halfScreenHeight = (int)ScreenHeight / 2;
+            int halfScreenHeight = (int)ScreenHeight / 2;  
 
             var currentMousePos = WinAPICaller.GetCursorPosition();
 
@@ -281,7 +312,7 @@ namespace InputLogic
                 case "Smoothstep":
                     newPosition.X = MovementPaths.Smoothstep(start, end, 1 - sensX).X;
                     newPosition.Y = MovementPaths.Smoothstep(start, end, 1 - sensY).Y;
-                    break;
+                    break;     
                 case "Perlin Noise":
                     newPosition.X = MovementPaths.PerlinNoise(start, end, 1 - sensX, 20, 0.5).X;
                     newPosition.Y = MovementPaths.PerlinNoise(start, end, 1 - sensY, 20, 0.5).Y;
@@ -296,13 +327,13 @@ namespace InputLogic
             {
                 double smoothedX = EmaSmoothing(cachedPreviousX, newPosition.X, cachedSmoothingFactor);
                 double smoothedY = EmaSmoothing(cachedPreviousY, newPosition.Y, cachedSmoothingFactor);
-
+                
                 if (!double.IsNaN(smoothedX) && !double.IsInfinity(smoothedX) &&
                     !double.IsNaN(smoothedY) && !double.IsInfinity(smoothedY))
                 {
                     newPosition.X = (int)smoothedX;
                     newPosition.Y = (int)smoothedY;
-
+                    
                     previousX = smoothedX;
                     previousY = smoothedY;
                 }
@@ -310,7 +341,7 @@ namespace InputLogic
             // Clamp the movement, but use doubles
             double moveXDouble = Math.Clamp(newPosition.X, -moveClamp, moveClamp);
             double moveYDouble = Math.Clamp(newPosition.Y, -moveClamp, moveClamp);
-
+            
             moveYDouble = moveYDouble * aspectRatioCorrection;
 
             // then round to int
@@ -339,7 +370,7 @@ namespace InputLogic
                     break;
                 case "Makcu":
                     MakcuMain.MakcuInstance.Move(moveX, moveY);
-                    break;
+                    break; 
 
                 default:
                     mouse_event(MOUSEEVENTF_MOVE, (uint)moveX, (uint)moveY, 0, 0);

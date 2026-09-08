@@ -26,6 +26,7 @@ namespace Vector2
         private readonly Lazy<InputBindingManager> _bindingManager = new(() => new InputBindingManager());
         private static readonly Lazy<GithubManager> _githubManager = new(() => new GithubManager());
         private readonly Lazy<UI> _uiManager = new(() => new UI());
+        private readonly Lazy<AntiRecoilManager> _arManager = new(() => new AntiRecoilManager());
         private Lazy<FileManager>? _fileManager;
 
         // Windows
@@ -52,6 +53,7 @@ namespace Vector2
         public static DetectedPlayerWindow DPWindow => _dpWindow.Value;
         public static GithubManager githubManager => _githubManager.Value;
         public UI uiManager => _uiManager.Value;
+        public AntiRecoilManager arManager => _arManager.Value;
 
         #endregion
 
@@ -256,6 +258,7 @@ namespace Vector2
         {
             var keybinds = new[]
             {
+                "Anti Recoil Keybind", "Toggle Anti Recoil Keybind",
                 "Aim Keybind", "Second Aim Keybind", "Dynamic FOV Keybind",
                 "Emergency Stop Keybind", "Model Switch Keybind", "Rapid Fire Keybind"
             };
@@ -738,7 +741,9 @@ namespace Vector2
             {
                 ["Model Switch Keybind"] = HandleModelSwitch,
                 ["Dynamic FOV Keybind"] = () => ApplyDynamicFOV(true),
-                ["Emergency Stop Keybind"] = HandleEmergencyStop
+                ["Emergency Stop Keybind"] = HandleEmergencyStop,
+                ["Anti Recoil Keybind"] = () => HandleAntiRecoil(true),
+                ["Toggle Anti Recoil Keybind"] = () => uiManager.T_AntiRecoil.Reader.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)),
             };
 
             handlers.GetValueOrDefault(bindingId)?.Invoke();
@@ -769,7 +774,8 @@ namespace Vector2
         {
             var handlers = new Dictionary<string, Action>
             {
-                ["Dynamic FOV Keybind"] = () => ApplyDynamicFOV(false)
+                ["Dynamic FOV Keybind"] = () => ApplyDynamicFOV(false),
+                ["Anti Recoil Keybind"] = () => HandleAntiRecoil(false)
             };
 
             handlers.GetValueOrDefault(bindingId)?.Invoke();
@@ -848,6 +854,20 @@ namespace Vector2
                     UpdateToggleUI(toggles[i], false);
             }
             LogManager.Log(LogManager.LogLevel.Info, "[Emergency Stop Keybind] Disabled all AI features.", true);
+        }
+
+        private void HandleAntiRecoil(bool start)
+        {
+            if (!Dictionary.toggleState["Anti Recoil"]) return;
+
+            if (start)
+            {
+                arManager.Start();
+            }
+            else
+            {
+                arManager.Stop();
+            }
         }
 
         #endregion
@@ -1055,8 +1075,11 @@ namespace Vector2
             var sliderConfigs = new[]
             {
                 ("FOV Size", uiManager.S_FOVSize, 640.0),
+                ("FOV Action Size", uiManager.S_FOVActionSize, 320.0),
+                ("Dynamic FOV Size", uiManager.S_DynamicFOVSize, 200.0),
                 ("Mouse Sensitivity X", uiManager.S_MouseSensitivityX, 0.8),
                 ("Mouse Sensitivity Y", uiManager.S_MouseSensitivityY, 0.8),
+                ("Movement Clamp", uiManager.S_MovementClamp, 100.0),
                 ("Sticky Aim Threshold", uiManager.S_StickyAimThreshold, 50),
                 ("Approach Speed", uiManager.S_ApproachSpeed, 0.0),
                 ("Approach Threshold", uiManager.S_ApproachThreshold, 0.0),
@@ -1067,6 +1090,9 @@ namespace Vector2
                 ("X Offset (%)", uiManager.S_XOffsetPercent, 0.0),
                 ("Auto Trigger Delay", uiManager.S_AutoTriggerDelay, 0.25),
                 ("Rapid Fire Delay", uiManager.S_RapidFireDelay, 100),
+                ("Move Delay", uiManager.S_MoveDelay, 10),
+                ("X Recoil (Left/Right)", uiManager.S_XAntiRecoil, 0),
+                ("Y Recoil (Up/Down)", uiManager.S_YAntiRecoil, 10),
                 ("AI Minimum Confidence", uiManager.S_AIMinimumConfidence, 50.0),
                 ("Kalman Lead Time", uiManager.S_KalmanLeadTime, 0.10),
                 ("Kalman Smoothness", uiManager.S_KalmanSmoothness, 0.5),

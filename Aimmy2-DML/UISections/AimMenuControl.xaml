@@ -17,6 +17,7 @@
                         Margin="10,0,5,0">
                 <StackPanel x:Name="AimAssist" />
                 <StackPanel x:Name="Predictions" />
+                <StackPanel x:Name="AntiRecoil" />
                 <StackPanel x:Name="TriggerBot" />
                 <StackPanel x:Name="RapidFire" />
                 <StackPanel x:Name="ESPConfig" />
