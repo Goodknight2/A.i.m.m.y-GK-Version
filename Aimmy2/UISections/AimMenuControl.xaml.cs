@@ -520,7 +520,7 @@ namespace Vector2.Controls
                 .AddKeyChanger("Anti Recoil Keybind", k => uiManager.C_AntiRecoilKeybind = k, "Left")
                 .AddKeyChanger("Toggle Anti Recoil Keybind", k => uiManager.C_ToggleAntiRecoilKeybind = k, "Oem6")
                 .AddSlider("Move Delay", "Milliseconds", 1, 1, 1, 100, s => uiManager.S_MoveDelay = s, 
-                    tooltip: "How long you can click before the anti recoil starts")
+                    tooltip: "The delay between each movement. Higher = Choppy and slow. Lower = Smooth and faster")
                 .AddSlider("Y Recoil (Up/Down)", "Move", 1, 1, -50, 50, s => uiManager.S_YAntiRecoil = s,
                     tooltip: "How much the mouse moves up or down. 1 = down, -1 = up")
                 .AddSlider("X Recoil (Left/Right)", "Move", 1, 1, -50, 50, s => uiManager.S_XAntiRecoil = s, 

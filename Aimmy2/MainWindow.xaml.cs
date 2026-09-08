@@ -737,7 +737,6 @@ namespace Vector2
 
         private void HandleKeybindPressed(string bindingId)
         {
-            LogManager.Log(LogManager.LogLevel.Info, $"[Keybind] Pressed: {bindingId}");
             var handlers = new Dictionary<string, Action>
             {
                 ["Model Switch Keybind"] = HandleModelSwitch,
@@ -773,7 +772,6 @@ namespace Vector2
 
         private void HandleKeybindReleased(string bindingId)
         {
-            LogManager.Log(LogManager.LogLevel.Info, $"[Keybind] Released: {bindingId}");
             var handlers = new Dictionary<string, Action>
             {
                 ["Dynamic FOV Keybind"] = () => ApplyDynamicFOV(false),
@@ -813,17 +811,7 @@ namespace Vector2
             Dictionary.sliderSettings["FOV Size"] = targetSize;
             AnimateFOVSize(targetSize);
         }
-        /* Old
-        private void ApplyDynamicFOV(bool apply)
-        {
-            if (!Dictionary.toggleState["Dynamic FOV"]) return;
 
-            var targetSize = apply ? Convert.ToDouble(Dictionary.sliderSettings["Dynamic FOV Size"]) : ActualFOV;
-            Dictionary.sliderSettings["FOV Size"] = targetSize;
-
-            AnimateFOVSize(targetSize);
-        }
-        */
         private void AnimateFOVSize(double targetSize)
         {
             var duration = TimeSpan.FromMilliseconds(500);
@@ -836,14 +824,6 @@ namespace Vector2
             Animator.WidthShift(duration, FOVWindow.RectangleShape, FOVWindow.RectangleShape.ActualWidth, targetSize);
             Animator.HeightShift(duration, FOVWindow.RectangleShape, FOVWindow.RectangleShape.ActualHeight, targetSize);
         }
-        /* Old
-        private void AnimateFOVSize(double targetSize)
-        {
-            var duration = TimeSpan.FromMilliseconds(500);
-            Animator.WidthShift(duration, FOVWindow.Circle, FOVWindow.Circle.ActualWidth, targetSize);
-            Animator.HeightShift(duration, FOVWindow.Circle, FOVWindow.Circle.ActualHeight, targetSize);
-        }
-        */
         private void HandleEmergencyStop()
         {
             var features = new[] { "Aim Assist", "Constant AI Tracking", "Auto Trigger", "Rapid Fire" };
@@ -998,18 +978,13 @@ namespace Vector2
                 {
                     var stringValue = value?.ToString() ?? "";
 
-                    // Log loaded dropdown values for debugging mapping issues
-                    LogManager.Log(LogManager.LogLevel.Info, $"LoadDropdownStates: '{key}' -> '{stringValue}'");
 
                     if (mappings.TryGetValue(stringValue, out int index))
                     {
-                        LogManager.Log(LogManager.LogLevel.Info, $"LoadDropdownStates: mapping found for '{key}' -> index {index}");
                         dropdown.DropdownBox.SelectedIndex = index;
                     }
                     else
                     {
-                        LogManager.Log(LogManager.LogLevel.Warning, $"No mapping found for '{stringValue}' in '{key}' dropdown. Attempting fallback by content match.");
-
                         // Fallback: try to find a ComboBoxItem whose content matches the string value
                         bool matched = false;
                         for (int i = 0; i < dropdown.DropdownBox.Items.Count; i++)
@@ -1018,7 +993,6 @@ namespace Vector2
                                 cbi.Content?.ToString() == stringValue)
                             {
                                 dropdown.DropdownBox.SelectedIndex = i;
-                                LogManager.Log(LogManager.LogLevel.Info, $"LoadDropdownStates: fallback matched '{key}' -> index {i}");
                                 matched = true;
                                 break;
                             }
@@ -1092,7 +1066,7 @@ namespace Vector2
                 ("X Offset (%)", uiManager.S_XOffsetPercent, 0.0),
                 ("Auto Trigger Delay", uiManager.S_AutoTriggerDelay, 0.25),
                 ("Rapid Fire Delay", uiManager.S_RapidFireDelay, 100),
-                ("Move Delay", uiManager.S_HoldThreshold, 10),
+                ("Move Delay", uiManager.S_MoveDelay, 10),
                 ("X Recoil (Left/Right)", uiManager.S_XAntiRecoil, 0),
                 ("Y Recoil (Up/Down)", uiManager.S_YAntiRecoil, 10),
                 ("AI Minimum Confidence", uiManager.S_AIMinimumConfidence, 50.0),
